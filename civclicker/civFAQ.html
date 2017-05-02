@@ -66,7 +66,7 @@
 		Really a lot.</dd>
 	</dl>
 	
-	<h2>The Future</h2>
+	<h2>The Past</h2>
 	<dl>
 		<dt>Is the game complete?</dt>
 		<dd>David Holley, the original author, has stated that he does not
@@ -75,6 +75,19 @@
 		<dd>Don't interrupt.  As I was saying, David generously released the
 		code under the <a href="http://www.gnu.org/licenses/gpl.html">GPL</a>, 
 		which made this continuation of the project possible.</dd>
+		<dt>Can I play my v1.0 save games on later versions?</dt>
+		<dd>You can play them on v1.1, which I plan to keep available.  Later
+		versions will probably have to break savegame compatibility, in order
+		to add new features.</dd>
+	</dl>
+
+	<h2>The Present</h2>
+	<dl>
+		<dt>So who is working on CivClicker now that Dave's retired?</dt>
+		<dd>I'm Scott Colcord, the primary maintainer of CivClicker on 
+		SourceForge.  I'm the one doing most of the coding here at this point,
+		although at some point I hope to grow the team with the addition of
+		artists and translators.</dd>
 		<dt>So the game is open source now?  Does that mean that I can do
 		whatever I want with it?</dt>
 		<dd>Not quite.  The GPL is an open-source license, but there are still
@@ -91,28 +104,39 @@
 		That last one can be important, because some places, like the Apple App
 		Store, have DRM restrictions that conflict with it.
 		</dd>
-		<dt>So...what's the plan from here?</dt>
-		<dd>First, I'm going to take some time to learn the code, and refactor
-		it to be more extensible.  This will allow bigger and better things
-		in time.  However, it means that there will probably only be minor
-		bugfixes for a while.</dd>
+		<dt>Wow, there was a long time between 1.59 and 1.61!</dt>
+		<dd>Yep.  I got busy, and the game slid onto the back burner.  That can
+        happen with these "spare time" sort of projects, but I do apologize for
+        leaving a couple of ugly bugs on the table.  My thanks to the devs on
+        forks who hunted the bugs down.</dd>
+		<dt>How do you feel about forks?</dt>
+		<dd>People are absolutely welcome to fork the game - the GPL ensures
+        that everyone has that right.  With regard to merging changes from
+        forks back to this branch, I'll evaluate on a case-by-case basis.</dd>
+		<dt>Any other suggestions for forks?</dt>
+        <dd>If you're going to make a fork, please use git, and import the entire
+        history into your repository so that you keep an intact history chain
+        going all the way back to v1.0.</dd>
+        <dd>If you want your fork to remain compatible with others, please resist
+        the urge to reorganize or reformat the code.  I know it's tempting,
+        but if the first thing everyone does is impose their personal style,
+        exchanging code will be nearly impossible.</dd>
+        <dd>Also, I intend that this version always remain clean of any sort
+        of tracking code, such as Google Analytics.  I know it's fun for a
+        dev to be able to watch as people use your code, but we have little
+        enough privacy left already, so I want to preserve what we've got.
+        Finally, I don't want to bring in any external libraries or frameworks
+        at this time; I'd like to see how far the game can go using pure vanilla 
+        JS.</dd>
 	</dl>
 
-	<h2>The Present</h2>
+	<h2>The Future</h2>
 	<dl>
-		<dt>So who is working on CivClicker now that Dave's retired?</dt>
-		<dd>I'm Scott Colcord, the primary maintainer of CivClicker on 
-		SourceForge.  I'm the one doing most of the coding at this point,
-		although the team is likely to eventually grow with the addition of
-		artists and translators.</dd>
-	</dl>
-	
-	<h2>The Past</h2>
-	<dl>
-		<dt>Can I play my v1.0 save games on later versions?</dt>
-		<dd>You can play them on v1.1, which I plan to keep available.  Later
-		versions will probably have to break savegame compatibility, in order
-		to add new features.</dd>
+		<dt>So...what's the plan from here?</dt>
+		<dd>First, I'm going to take some time (okay, quite a lot of time) 
+        to learn the code, and refactor it to be more extensible.  This will
+        allow bigger and better things in time.  However, it means that there
+        will probably only be minor bugfixes for a while.</dd>
 	</dl>
 	
 	<h2>BUGS</h2>
@@ -134,7 +158,7 @@
 		<dt>Can I help?</dt>
 		<dd>If you like the game, I'd appreciate if you shared a link so more people can see it. :)</dd>
 		<dt>I meant, do you need any help coding?</dt>
-		<dd>Not at the moment; I'm refactoring the code pretty quickly, and
+		<dd>Not at the moment; I'm gradually refactoring the code, and
 		having more people on it would probably slow the process down with
 		coordination overhead.  Once I finish the refactoring phase, however,
 		I'm likely to want better graphics, sound, and translations, though,

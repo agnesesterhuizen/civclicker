@@ -1,7 +1,7 @@
 "use strict";
 /**
     CivClicker
-    Copyright (C) 2014; see the AUTHORS file for authorship.
+    Copyright (C) 2017; see the AUTHORS file for authorship.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -35,7 +35,7 @@ function ifValid(variable, defVal) {
 // Passes surplus arguments on to the function.
 //xxx argument forwarding needs testing.
 function valOf(variable) { return (typeof variable == "function") 
-                            ? variable.apply(this, Array.slice.call(arguments,1)) 
+                            ? variable.apply(this, Array.prototype.slice.call(arguments,1)) 
                             : variable;
 }
 

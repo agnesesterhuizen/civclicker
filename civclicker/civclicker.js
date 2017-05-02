@@ -1,10 +1,13 @@
-"use strict";
 /*jslint browser: true, devel: true, passfail: false, continue: true, eqeq: true, plusplus: true, vars: true, white: true, indent: 4, maxerr: 999 */
+/* Note:  I'm not going to bother using JSLint anymore, as it no longer allows
+ * you to ignore its author's personal coding style preferences.  I'll use 
+ * JSHint instead. */
 /* jshint laxbreak: true, laxcomma: true */
-/* global updateJobButtons,updatePurchaseRow,updateResourceTotals,updateBuildingTotals,updateMobs,updateDeity,updateUpgrades,updateOldDeities,updateDevotion,updateParty,updateMorale,updateWonder,updatePopulation,calcCost,updateJobs,updateAchievements,updateTargets,updateWonderList,digGraves,renameDeity,spawnMob,renameWonder,adjustMorale,versionAlert,gameLog,prettify,LZString,bake_cookie,read_cookie,prettify,updateRequirements,calcWorkerCost,mergeObj,isValid,setElemDisplay,rndRound,playerCombatMods,dataset,copyProps,updatePopulationUI,calcZombieCost,logSearchFn,getCustomNumber,calcArithSum,SecurityError,doSlaughter,doLoot,doHavoc,valOf,setAutosave,setCustomQuantities,textSize,setDelimiters,setShadow,setNotes,setWorksafe,setIcons,deleteCookie,matchType,addPUpgradeRows */
+/* global updateJobButtons,updatePurchaseRow,updateResourceTotals,updateBuildingTotals,updateMobs,updateDeity,updateUpgrades,updateOldDeities,updateDevotion,updateParty,updateMorale,updateWonder,updatePopulation,calcCost,updateJobs,updateAchievements,updateTargets,updateWonderList,digGraves,renameDeity,spawnMob,renameWonder,adjustMorale,versionAlert,gameLog,prettify,LZString,bake_cookie,read_cookie,prettify,updateRequirements,calcWorkerCost,mergeObj,isValid,setElemDisplay,rndRound,playerCombatMods,dataset,copyProps,updatePopulationUI,calcZombieCost,logSearchFn,getCustomNumber,calcArithSum,SecurityError,doSlaughter,doLoot,doHavoc,valOf,setAutosave,setCustomQuantities,textSize,setDelimiters,setShadow,setNotes,setWorksafe,setIcons,deleteCookie,matchType,addPUpgradeRows,indexArrayByAttr */
+"use strict";
 /**
     CivClicker
-    Copyright (C) 2014; see the AUTHORS file for authorship.
+    Copyright (C) 2017; see the AUTHORS file for authorship.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -33,7 +36,7 @@ VersionData.prototype.toNumber = function() { return this.major*1000 + this.mino
 VersionData.prototype.toString = function() { return String(this.major) + "." 
     + String(this.minor) + "." + String(this.sub) + String(this.mod); };
 
-var versionData = new VersionData(1,1,59,"alpha");
+var versionData = new VersionData(1,1,61,"alpha");
 
 var saveTag = "civ";
 var saveTag2 = saveTag + "2"; // For old saves.
@@ -81,7 +84,11 @@ var curCiv = {
     zombie: { owned:0 },
     grave: { owned:0 },
     enemySlain: { owned:0 },
-    morale : { mod:1.0 },
+
+    morale : { 
+        mod:1.0,
+        efficiency:1.0
+    },
 
     resourceClicks : 0, // For NeverClick
     attackCounter : 0, // How long since last attack?
@@ -106,7 +113,7 @@ var curCiv = {
         name:"",
         stage:0, // 0 = Not started, 1 = Building, 2 = Built, awaiting selection, 3 = Finished.
         progress:0, // Percentage completed.
-        rushed:false
+        rushed:false  // Has it ever been rushed (with gold)?
     },
     wonders:[],  // Array of {name: name, resourceId: resourceId} for all wonders.
 
@@ -125,10 +132,14 @@ function getCurDeityDomain() { return (curCiv.deities.length > 0) ? curCiv.deiti
 
 // These are not saved, but we need them up here for the asset data to init properly.
 var population = {
-    current:0,
-    limit:0,
-    healthy:0,
-    totalSick:0
+    current:0,   // Total human(oid) units, including healthy, sick and deployed (but not zombies).
+    limit:0,     // Housing limit:  Caps human(oid) units.
+    healthy:0,   // Total number of healthy player units at home (excludes deployed and subtracts zombies).
+                 // Used for plague, sacrifice(walk/wickerman), and mob attack victims.
+                 //xxx This has a miscalculation; it subtracts deployed zombies it never counted in the first place.
+                 //xxx It also shouldn't be used for mob attack (zombies are valid targets) (Original Bug).
+
+    totalSick:0  // Total number of sick player units
 };
 
 // Caches the total number of each wonder, so that we don't have to recount repeatedly.
@@ -193,7 +204,6 @@ CivObj.prototype = {
     reset: function() { return this.init(false); }, // Default reset behavior is to re-init non-prestige items.
     get limit() { return (typeof this.initOwned == "number" ) ? Infinity // Default is no limit for numbers
                        : (typeof this.initOwned == "boolean") ? true : 0; }, // true (1) for booleans, 0 otherwise.
-    set limit(value) { return this.limit; }, // Only here for JSLint.
     //xxx This is a hack; it assumes that any CivObj with a getter for its
     // 'require' has a variable cost.  Which is currently true, but might not
     // always be.
@@ -255,7 +265,6 @@ Building.prototype = new CivObj({
     alignment:"player",
     place: "home",
     get vulnerable() { return this.subType != "altar"; }, // Altars can't be sacked.
-    set vulnerable(value) { return this.vulnerable; }, // Only here for JSLint.
     customQtyId: "buildingCustomQty"
 },true);
 
@@ -276,7 +285,6 @@ Upgrade.prototype = new CivObj({
     initOwned: false,
     vulnerable: false,
     get limit() { return 1; }, // Can't re-buy these.
-    set limit(value) { return this.limit; } // Only here for JSLint.
 },true);
 
 function Unit(props) // props is an object containing the desired properties.
@@ -295,14 +303,12 @@ Unit.prototype = new CivObj({
     type: "unit",
     salable: true,
     get customQtyId() { return this.place + "CustomQty"; },
-    set customQtyId(value) { return this.customQtyId; }, // Only here for JSLint.
     alignment:"player", // Also: "enemy"
     species: "human", // Also:  "animal", "mechanical", "undead"
     place: "home", // Also:  "party"
     combatType: "",  // Default noncombatant.  Also "infantry","cavalry","animal"
     onWin: function() { return; }, // Do nothing.
     get vulnerable() { return ((this.place == "home")&&(this.alignment=="player")&&(this.subType=="normal")); },
-    set vulnerable(value) { return this.vulnerable; }, // Only here for JSLint.
     init: function(fullInit) { CivObj.prototype.init.call(this,fullInit);
         // Right now, only vulnerable human units can get sick.
         if (this.vulnerable && (this.species=="human")) {
@@ -318,18 +324,15 @@ Unit.prototype = new CivObj({
     get ill() { return isValid(this.illObj) ? this.illObj.owned : undefined; },
     set ill(value) { if (isValid(this.illObj)) { this.illObj.owned = value; } },
     get partyObj() { return civData[this.id+"Party"]; },
-    set partyObj(value) { return this.partyObj; }, // Only here for JSLint.
     get party() { return isValid(this.partyObj) ? this.partyObj.owned : undefined; },
     set party(value) { if (isValid(this.partyObj)) { this.partyObj.owned = value; } },
     // Is this unit just some other sort of unit in a different place (but in the same limit pool)?
     isDest: function() { return (this.source !== undefined) && (civData[this.source].partyObj === this); },
     get limit() { return (this.isDest()) ? civData[this.source].limit 
                                              : Object.getOwnPropertyDescriptor(CivObj.prototype,"limit").get.call(this); },
-    set limit(value) { return this.limit; }, // Only here for JSLint.
 
     // The total quantity of this unit, regardless of status or place.
     get total() { return (this.isDest()) ? civData[this.source].total : (this.owned + (this.ill||0) + (this.party||0)); },
-    set total(value) { return this.total; } // Only here for JSLint.
 },true);
 
 function Achievement(props) // props is an object containing the desired properties.
@@ -348,7 +351,6 @@ Achievement.prototype = new CivObj({
     prestige : true, // Achievements are not lost on reset.
     vulnerable : false,
     get limit() { return 1; }, // Can't re-buy these.
-    set limit(value) { return this.limit; } // Only here for JSLint.
 },true);
 
 // Initialize Data
@@ -357,20 +359,17 @@ var civData = [
 new Resource({ id:"food", name:"food", increment:1, specialChance:0.1,
     subType:"basic",
     specialMaterial: "skins", verb: "gather", activity: "foraging", //I18N
-    get limit() { return 200 + (civData.barn.owned * (civData.granaries.owned?2:1) * 200); },
-    set limit(value) { return this.limit; } // Only here for JSLint.
+    get limit() { return 200 + (200 * civData.barn.owned * (civData.granaries.owned?2:1)); },
 }),
 new Resource({ id:"wood", name:"wood", increment:1, specialChance:0.1,
     subType:"basic",
     specialMaterial: "herbs", verb: "cut", activity: "woodcutting", //I18N
     get limit() { return 200 + (civData.woodstock.owned  * 200); },
-    set limit(value) { return this.limit; } // Only here for JSLint.
 }),
 new Resource({ id:"stone", name:"stone", increment:1, specialChance:0.1,
     subType:"basic",
     specialMaterial: "ore", verb: "mine", activity: "mining", //I18N
     get limit() { return 200 + (civData.stonestock.owned  * 200); },
-    set limit(value) { return this.limit; } // Only here for JSLint.
 }),
 new Resource({ id:"skins", singular:"skin", plural:"skins"}),
 new Resource({ id:"herbs", singular:"herb", plural:"herbs" }),
@@ -403,7 +402,6 @@ new Building({ id:"house", singular:"house", plural:"houses",
     prereqs:{ construction: true },
     require:{ wood:30, stone:70 },
     get effectText() { var num = 10 + 2*(civData.slums.owned + civData.tenements.owned); return "+"+num+" max pop."; },
-    set effectText(value) { return this.require; }, // Only here for JSLint.
     update: function() { document.getElementById(this.id+"Note").innerHTML = ": "+this.effectText; } }),
 new Building({ id:"mansion", singular:"mansion", plural:"mansions",
     prereqs:{ architecture: true },
@@ -411,7 +409,8 @@ new Building({ id:"mansion", singular:"mansion", plural:"mansions",
     effectText:"+50 max pop." }),
 new Building({ id:"barn", singular:"barn", plural:"barns",
     require:{ wood:100 },
-    effectText:"+200 food storage" }),
+    get effectText() { var num = 200 * (civData.granaries.owned?2:1); return "+"+num+" food storage"; },
+    update: function() { document.getElementById(this.id+"Note").innerHTML = ": "+this.effectText; } }),
 new Building({ id:"woodstock", singular:"wood stockpile", plural:"wood stockpiles",
     require:{ wood:100 },
     effectText:"+200 wood storage" }),
@@ -455,14 +454,12 @@ new Building({ id:"mill", singular:"mill", plural:"mills",
     prereqs:{ wheel: true },
     get require() { return { wood  : 100 * (this.owned + 1) * Math.pow(1.05,this.owned),
                              stone : 100 * (this.owned + 1) * Math.pow(1.05,this.owned) }; },
-    set require(value) { return this.require; }, // Only here for JSLint.
     effectText:"improves farmers" }),
 new Building({ id:"fortification", singular:"fortification", plural:"fortifications", efficiency: 0.01,
     prereqs:{ architecture: true },
     //xxx This is testing a new technique that allows a function for the cost items.
     // Eventually, this will take a qty parameter
     get require() { return { stone : function() { return 100 * (this.owned + 1) * Math.pow(1.05,this.owned); }.bind(this) }; },
-    set require(value) { return this.require; }, // Only here for JSLint.
     effectText:"helps protect against attack" }),
 // Altars
 // The 'name' on the altars is really the label on the button to make them.
@@ -471,26 +468,22 @@ new Building({ id:"battleAltar", name:"Build Altar", singular:"battle altar", pl
     subType: "altar", devotion:1,
     prereqs:{ deity: "battle" },
     get require() { return { stone:200, piety:200, metal : 50 + (50 * this.owned) }; },
-    set require(value) { return this.require; }, // Only here for JSLint.
     effectText:"+1 Devotion" }),
 new Building({ id:"fieldsAltar", name:"Build Altar", singular:"fields altar", plural:"fields altars", 
     subType: "altar", devotion:1,
     prereqs:{ deity: "fields" },
     get require() { return { stone:200, piety:200,
             food : 500 + (250 * this.owned), wood : 500 + (250 * this.owned) }; },
-    set require(value) { return this.require; }, // Only here for JSLint.
     effectText:"+1 Devotion" }),
 new Building({ id:"underworldAltar", name:"Build Altar", singular:"underworld altar", plural:"underworld altars",
     subType: "altar", devotion:1,
     prereqs:{ deity: "underworld" },
     get require() { return { stone:200, piety:200, corpses : 1 + this.owned }; },
-    set require(value) { return this.require; }, // Only here for JSLint.
     effectText:"+1 Devotion" }),
 new Building({ id:"catAltar", name:"Build Altar", singular:"cat altar", plural:"cat altars", 
     subType: "altar", devotion:1,
     prereqs:{ deity: "cats" },
     get require() { return { stone:200, piety:200, herbs : 100 + (50 * this.owned) }; },
-    set require(value) { return this.require; }, // Only here for JSLint.
     effectText:"+1 Devotion" }),
 // Upgrades
 new Upgrade({ id:"skinning", name:"Skinning", subType: "upgrade",
@@ -796,31 +789,27 @@ new Unit({ id:"tanner", singular:"tanner", plural:"tanners",
     efficiency: 0.5,
     prereqs:{ tannery: 1 },
     get limit() { return civData.tannery.owned; },
-    set limit(value) { return this.limit; }, // Only here for JSLint.
     effectText:"Convert skins to leather" }),
 new Unit({ id:"blacksmith", singular:"blacksmith", plural:"blacksmiths",
     source:"unemployed",
     efficiency: 0.5,
     prereqs:{ smithy: 1 },
     get limit() { return civData.smithy.owned; },
-    set limit(value) { return this.limit; }, // Only here for JSLint.
     effectText:"Convert ore to metal" }),
 new Unit({ id:"healer", singular:"healer", plural:"healers",
     source:"unemployed",
     efficiency: 0.1,
     prereqs:{ apothecary: 1 },
-    init: function(fullInit) { Unit.prototype.init.call(this,fullInit); this.cureCount = 0; },
+    init: function(fullInit) { Unit.prototype.init.call(this,fullInit); this.data.cureCount = 0; },
     get limit() { return civData.apothecary.owned; },
-    set limit(value) { return this.limit; }, // Only here for JSLint.
     get cureCount() { return this.data.cureCount; }, // Carryover fractional healing
-    set cureCount(value) { this.data.cureCount = value; }, // Only here for JSLint.
+    set cureCount(value) { this.data.cureCount = value; },
     effectText:"Cure sick workers" }),
 new Unit({ id:"cleric", singular:"cleric", plural:"clerics",
     source:"unemployed",
     efficiency: 0.05,
     prereqs:{ temple: 1 },
     get limit() { return civData.temple.owned; },
-    set limit(value) { return this.limit; }, // Only here for JSLint.
     effectText:"Generate piety, bury corpses" }),
 new Unit({ id:"labourer", singular:"labourer", plural:"labourers",
     source:"unemployed",
@@ -836,7 +825,6 @@ new Unit({ id:"soldier", singular:"soldier", plural:"soldiers",
     prereqs:{ barracks: 1 },
     require:{ leather:10, metal:10 },
     get limit() { return 10*civData.barracks.owned; },
-    set limit(value) { return this.limit; }, // Only here for JSLint.
     effectText:"Protect from attack" }),
 new Unit({ id:"cavalry", singular:"cavalry", plural:"cavalry",
     source:"unemployed",
@@ -847,7 +835,6 @@ new Unit({ id:"cavalry", singular:"cavalry", plural:"cavalry",
     prereqs:{ stable: 1 },
     require:{ food:20, leather:20 },
     get limit() { return 10*civData.stable.owned; },
-    set limit(value) { return this.limit; }, // Only here for JSLint.
     effectText:"Protect from attack" }),
 new Unit({ id:"cat", singular:"cat", plural:"cats", subType:"special",
     require: undefined,  // Cannot be purchased (through normal controls)
@@ -1008,9 +995,9 @@ var upgradeData = []; // All upgrades
 var powerData = []; // All 'powers' //xxx This needs refinement.
 var unitData = []; // All units
 var achData = []; // All achievements
-var sackable= []; // All buildings that can be destroyed
-var lootable= []; // All resources that can be stolen
-var killable= []; // All units that can be destroyed
+var sackable= []; // All player buildings that can be destroyed
+var lootable= []; // All player resources that can be stolen
+var killable= []; // All player units that can be destroyed (excludes deployed).
 var homeBuildings= []; // All buildings to be displayed in the home area
 var homeUnits= []; // All units to be displayed in the home area
 var armyUnits= []; // All units to be displayed in the army area
@@ -1389,9 +1376,6 @@ function updatePurchaseRow(purchaseObj){
     // redisplayed elsewhere.
     var hideBoughtUpgrade = ((purchaseObj.type == "upgrade") && (purchaseObj.owned == purchaseObj.limit) && !purchaseObj.salable);
 
-    // Reveal the row if  prereqs are met
-    setElemDisplay(elem,havePrereqs && !hideBoughtUpgrade);
-
     var maxQty = canPurchase(purchaseObj);
     var minQty = canPurchase(purchaseObj,-Infinity);
 
@@ -1408,6 +1392,9 @@ function updatePurchaseRow(purchaseObj){
 
         curElem.disabled = ((purchaseQty > maxQty) || (purchaseQty < minQty));
     }
+
+    // Reveal the row if  prereqs are met
+    setElemDisplay(elem,havePrereqs && !hideBoughtUpgrade);
 }
 
 
@@ -1602,6 +1589,11 @@ function updatePopulation(){
     //Update sick workers
     population.totalSick = 0;
     unitData.forEach(function(elem) { if (elem.alignment == "player") { population.totalSick += (elem.ill||0); } });
+
+    //xxx BUG: population.healthy has summed all the healthy people at home.
+    //We need to exclude zombies, but we have no count of the division of
+    //home vs. deployed zombies.
+
     setElemDisplay("totalSickRow",(population.totalSick > 0));
 
     //Calculate healthy workers (excludes sick, zombies and deployed units)
@@ -1627,9 +1619,17 @@ function updatePopulation(){
             console.log("Warning: Negative current population detected.");
         }
     }
+
+    if (population.current < 0){ console.log("Warning: Negative current population detected."); }
+    if (population.healthy < 0){ console.log("Warning: Negative healthy population detected."); }
+
+    // We can't have more healthy humans than we have humans.
+    population.healthy = Math.min(population.healthy, population.current);
 }
 
 //Update page with numbers
+//xxx It would be friendly if we showed the remaining room for units that are
+// building-limited.
 function updatePopulationUI() {
     var i, elem, elems, displayElems;
 
@@ -1648,6 +1648,7 @@ function updatePopulationUI() {
     }
 
     civData.house.update(); //xxx Effect might change dynamically.  Need a more general way to do this.
+    civData.barn.update(); //xxx Effect might change dynamically.  Need a more general way to do this.
 
     setElemDisplay("graveTotal",(curCiv.grave.owned > 0));
 
@@ -2156,9 +2157,12 @@ function doPurchase(objId,num){
     }
 
     //Then check for overcrowding
-    if ((purchaseObj.type == "building") && --civData.freeLand.owned < 0){
-        gameLog("You are suffering from overcrowding.");  // I18N
-        adjustMorale(Math.max(num,-civData.freeLand.owned) * -0.0025 * (civData.codeoflaws.owned ? 0.5 : 1.0));
+    if (purchaseObj.type == "building") { 
+        civData.freeLand.owned -= num;
+        if (civData.freeLand.owned < 0) {
+            gameLog("You are suffering from overcrowding.");  // I18N
+            adjustMorale(Math.max(num,-civData.freeLand.owned) * -0.0025 * (civData.codeoflaws.owned ? 0.5 : 1.0));
+        }
     }
 
     updateRequirements(purchaseObj); //Increases buildings' costs
@@ -2391,6 +2395,7 @@ function digGraves(num){
 }
 
 //Selects a random healthy worker based on their proportions in the current job distribution.
+//xxx Generalize this to take a predicate.
 //xxx Doesn't currently pick from the army
 //xxx Take a parameter for how many people to pick.
 //xxx Make this able to return multiples by returning a cost structure.
@@ -3188,20 +3193,20 @@ function migrateGameData(loadVar, settingsVarReturn)
         delete loadVar.curCiv.tradeCounter;
     }
 
-    if (isValid(loadVar.wonder.array)) // v1.1.59: wonder.array moved to curCiv.wonders
-    {
-        if (!isValid(loadVar.curCiv.wonders)) { 
-            loadVar.curCiv.wonders = [];
-            loadVar.wonder.array.forEach(function(elem) {
-                // Format converted from [name,resourceId] to {name: name, resourceId: resourceId}
-                loadVar.curCiv.wonders.push({name: elem[0], resourceId: elem[1]});
-            });
-        }
-        delete loadVar.wonder.array;
-    }
-
     if (isValid(loadVar.wonder)) // v1.1.59: wonder moved to curCiv.curWonder
     {
+        if (isValid(loadVar.wonder.array)) // v1.1.59: wonder.array moved to curCiv.wonders
+        {
+            if (!isValid(loadVar.curCiv.wonders)) { 
+                loadVar.curCiv.wonders = [];
+                loadVar.wonder.array.forEach(function(elem) {
+                    // Format converted from [name,resourceId] to {name: name, resourceId: resourceId}
+                    loadVar.curCiv.wonders.push({name: elem[0], resourceId: elem[1]});
+                });
+            }
+            delete loadVar.wonder.array;
+        }
+
         if (isValid(loadVar.wonder.total  )) { delete loadVar.wonder.total;   } // wonder.total no longer used.
         if (isValid(loadVar.wonder.food   )) { delete loadVar.wonder.food;    } // wonder.food no longer used.
         if (isValid(loadVar.wonder.wood   )) { delete loadVar.wonder.wood;    } // wonder.wood no longer used.
@@ -3546,7 +3551,10 @@ function reset(){
     curCiv.enemySlain.owned = 0;
     curCiv.resourceClicks = 0; // For NeverClick
     curCiv.attackCounter = 0; // How long since last attack?
-    curCiv.morale = { mod: 1.0 };
+    curCiv.morale = { 
+        mod:1.0,
+        efficiency:1.0 
+    };
 
     // If our current deity is powerless, delete it.
     if (!curCiv.deities[0].maxDev) {
