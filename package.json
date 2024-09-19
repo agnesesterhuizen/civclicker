@@ -1,8 +1,14 @@
 {
   "scripts": {
+    "build": "rollup --config rollup.config.js --configPlugin typescript",
+    "dev": "rollup --config rollup.config.js --configPlugin typescript --watch",
     "format": "prettier -w ."
   },
-  "dependencies": {
-    "prettier": "^3.3.3"
+  "devDependencies": {
+    "@rollup/plugin-typescript": "^11.1.6",
+    "prettier": "^3.3.3",
+    "rollup": "^4.22.0",
+    "tslib": "^2.7.0",
+    "typescript": "^5.6.2"
   }
 }

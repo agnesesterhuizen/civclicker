@@ -1,11 +1,10 @@
-'use strict';
-
 /*jslint browser: true, devel: true, passfail: false, continue: true, eqeq: true, plusplus: true, vars: true, white: true, indent: 4, maxerr: 999 */
 /* Note:  I'm not going to bother using JSLint anymore, as it no longer allows
  * you to ignore its author's personal coding style preferences.  I'll use
  * JSHint instead. */
 /* jshint laxbreak: true, laxcomma: true */
 /* global updateJobButtons,updatePurchaseRow,updateResourceTotals,updateBuildingTotals,updateMobs,updateDeity,updateUpgrades,updateOldDeities,updateDevotion,updateParty,updateMorale,updateWonder,updatePopulation,calcCost,updateJobs,updateAchievements,updateTargets,updateWonderList,digGraves,renameDeity,spawnMob,renameWonder,adjustMorale,versionAlert,gameLog,prettify,LZString,bake_cookie,read_cookie,prettify,updateRequirements,calcWorkerCost,mergeObj,isValid,setElemDisplay,rndRound,playerCombatMods,dataset,copyProps,updatePopulationUI,calcZombieCost,logSearchFn,getCustomNumber,calcArithSum,SecurityError,doSlaughter,doLoot,doHavoc,valOf,setAutosave,setCustomQuantities,textSize,setDelimiters,setShadow,setNotes,setWorksafe,setIcons,deleteCookie,matchType,addPUpgradeRows,indexArrayByAttr */
+"use strict";
 /**
     CivClicker
     Copyright (C) 2017; see the AUTHORS file for authorship.
@@ -3202,6 +3201,39 @@ function updateSettings() {
   setIcons();
 }
 
+function update() {
+  //unified update function. NOT YET IMPLEMENTED
+
+  //debugging - mark beginning of function execution
+  var start = new Date().getTime();
+
+  //call each existing update subfunction in turn
+  updateResourceTotals(); //need to remove call to updatePopulation, move references to upgrades
+  updatePopulation(); //move enabling/disabling by space to updateJobButtons, remove calls to updateJobButtons, updateMorale, updateAchievements
+  updatePopulationUI();
+  updateResourceRows();
+  updateBuildingButtons();
+  updateJobButtons();
+  updatePartyButtons();
+  updateUpgrades();
+  //updateDeity(); --- only needs to be called on initialisation and deity-related interactions ---
+  //makeDeitiesTables(); --- only needs to be called on initialisation and deity-related interactions ---
+  updateDevotion(); //need to add else clauses to disable buttons, change the way updates are revealed (unhidden as devotion increases)
+  //updateRequirements(); --- only needs to be called on building-related interactions, though must subsequently call the update() function ---
+  updateAchievements(); //should probably include else clauses
+  //updateTargets();  --- only to be called at initialisation and targetMax alterations
+  updateMorale();
+  updateWonder(); //remove reference to updateWonderList
+  //updateWonderList(); --- only to be called at initialisation and when wonders are created ---
+  updateReset();
+
+  //Debugging - mark end of function, calculate delta in milliseconds, and print to console
+  var end = new Date().getTime();
+  var time = end - start;
+  //console.log("Update loop execution time: " + time + "ms"); //temporary altered to return time in order to run a debugging function
+  return time;
+}
+
 // Game functions
 
 //This function is called every time a player clicks on a primary resource button
@@ -3386,6 +3418,51 @@ function calcZombieCost(num) {
   return calcWorkerCost(num, curCiv.zombie.owned) / 5;
 }
 
+// Create a cat
+function spawnCat() {
+  ++civData.cat.owned;
+  gameLog("Found a cat!");
+}
+
+// Creates or destroys workers
+function spawn(num) {
+  var jobObj = civData.unemployed;
+  if (num == "custom") {
+    num = getCustomNumber(jobObj);
+  }
+  if (num == "-custom") {
+    num = -getCustomNumber(jobObj);
+  }
+
+  // Find the most workers we can spawn
+  num = Math.max(num, -jobObj.owned); // Cap firing by # in that job.
+  num = Math.min(num, logSearchFn(calcWorkerCost, civData.food.owned));
+
+  // Apply population limit, and only allow whole workers.
+  num = Math.min(num, population.limit - population.current);
+
+  // Update numbers and resource levels
+  civData.food.owned -= calcWorkerCost(num);
+
+  // New workers enter as farmers, but we only destroy idle ones.
+  if (num >= 0) {
+    civData.farmer.owned += num;
+  } else {
+    jobObj.owned += num;
+  }
+  updatePopulation(); //Run through the population->job update cycle
+
+  //This is intentionally independent of the number of workers spawned
+  if (Math.random() * 100 < 1 + civData.lure.owned) {
+    spawnCat();
+  }
+
+  updateResourceTotals(); //update with new resource number
+  updatePopulationUI();
+
+  return num;
+}
+
 // Picks the next worker to starve.  Kills the sick first, then the healthy.
 // Deployed military starve last.
 // Return the job ID of the selected target.
@@ -3480,8 +3557,76 @@ function doStarve() {
   }
 }
 
+// Creates or destroys zombies
+// Pass a positive number to create, a negative number to destroy.
+// Only idle zombies can be destroyed.
+// If it can't create/destroy as many as requested, does as many as it can.
+// Pass Infinity/-Infinity as the num to get the max possible.
+// Pass "custom" or "-custom" to use the custom increment.
+// Returns the actual number created or destroyed (negative if destroyed).
+function raiseDead(num) {
+  if (num === undefined) {
+    num = 1;
+  }
+  if (num == "custom") {
+    num = getCustomNumber(civData.unemployed);
+  }
+  if (num == "-custom") {
+    num = -getCustomNumber(civData.unemployed);
+  }
+
+  // Find the most zombies we can raise
+  num = Math.min(num, civData.corpses.owned);
+  num = Math.max(num, -curCiv.zombie.owned); // Cap firing by # in that job.
+  num = Math.min(num, logSearchFn(calcZombieCost, civData.piety.owned));
+
+  //Update numbers and resource levels
+  civData.piety.owned -= calcZombieCost(num);
+  curCiv.zombie.owned += num;
+  civData.unemployed.owned += num;
+  civData.corpses.owned -= num;
+
+  //Notify player
+  if (num == 1) {
+    gameLog("A corpse rises, eager to do your bidding.");
+  } else if (num > 1) {
+    gameLog("The corpses rise, eager to do your bidding.");
+  } else if (num == -1) {
+    gameLog("A zombie crumples to the ground, inanimate.");
+  } else if (num < -1) {
+    gameLog("The zombies fall, mere corpses once again.");
+  }
+
+  updatePopulation(); //Run through population->jobs cycle to update page with zombie and corpse totals
+  updatePopulationUI();
+  updateResourceTotals(); //Update any piety spent
+
+  return num;
+}
+
+function summonShade() {
+  if (curCiv.enemySlain.owned <= 0) {
+    return 0;
+  }
+  if (!payFor(civData.summonShade.require)) {
+    return 0;
+  }
+
+  var num = Math.ceil(curCiv.enemySlain.owned / 4 + (Math.random() * curCiv.enemySlain.owned) / 4);
+  curCiv.enemySlain.owned -= num;
+  civData.shade.owned += num;
+
+  return num;
+}
+
 //Deity Domains upgrades
 function selectDeity(domain, force) {
+  if (!force) {
+    if (civData.piety.owned < 500) {
+      return;
+    } // Can't pay
+    civData.piety.owned -= 500;
+  }
   curCiv.deities[0].domain = domain;
 
   document.getElementById(domain + "Upgrades").style.display = "inline";
@@ -3514,6 +3659,77 @@ function randomHealthyWorker() {
   return "";
 }
 
+//Selects a random worker, kills them, and then adds a random resource
+//xxx This should probably scale based on population (and maybe devotion).
+function wickerman() {
+  //Select a random worker
+  var job = randomHealthyWorker();
+  if (!job) {
+    return;
+  }
+
+  //Pay the price
+  if (!payFor(civData.wickerman.require)) {
+    return;
+  }
+  --civData[job].owned;
+  updatePopulation(); //Removes killed worker
+
+  //Select a random lootable resource
+  var rewardObj = lootable[Math.floor(Math.random() * lootable.length)];
+
+  var qty = Math.floor(Math.random() * 1000);
+  //xxx Note that this presumes the price is 500 wood.
+  if (rewardObj.id == "wood") {
+    qty = qty / 2 + 500;
+  } // Guaranteed to at least restore initial cost.
+  rewardObj.owned += qty;
+
+  function getRewardMessage(rewardObj) {
+    switch (rewardObj.id) {
+      case "food":
+        return "The crops are abundant!";
+      case "wood":
+        return "The trees grow stout!";
+      case "stone":
+        return "The stone splits easily!";
+      case "skins":
+        return "The animals are healthy!";
+      case "herbs":
+        return "The gardens flourish!";
+      case "ore":
+        return "A new vein is struck!";
+      case "leather":
+        return "The tanneries are productive!";
+      case "metal":
+        return "The steel runs pure.";
+      default:
+        return "You gain " + rewardObj.getQtyName(qty) + "!";
+    }
+  }
+
+  gameLog("Burned a " + civData[job].getQtyName(1) + ". " + getRewardMessage(rewardObj));
+  updateResourceTotals(); //Adds new resources
+  updatePopulationUI();
+}
+
+function walk(increment) {
+  if (increment === undefined) {
+    increment = 1;
+  }
+  if (increment === false) {
+    increment = 0;
+    civData.walk.rate = 0;
+  }
+
+  civData.walk.rate += increment;
+
+  //xxx This needs to move into the main loop in case it's reloaded.
+  document.getElementById("walkStat").innerHTML = prettify(civData.walk.rate);
+  document.getElementById("ceaseWalk").disabled = civData.walk.rate === 0;
+  setElemDisplay("walkGroup", civData.walk.rate > 0);
+}
+
 function tickWalk() {
   var i;
   var target = "";
@@ -3538,6 +3754,58 @@ function tickWalk() {
   }
   updatePopulation();
   updatePopulationUI();
+}
+
+// Give a temporary bonus based on the number of cats owned.
+function pestControl(length) {
+  if (length === undefined) {
+    length = 10;
+  }
+  if (civData.piety.owned < 10 * length) {
+    return;
+  }
+  civData.piety.owned -= 10 * length;
+  civData.pestControl.timer = length * civData.cat.owned;
+  gameLog("The vermin are exterminated.");
+}
+
+/* Iconoclasm */
+
+function iconoclasmList() {
+  var i;
+  //Lists the deities for removing
+  if (civData.piety.owned >= 1000) {
+    civData.piety.owned -= 1000;
+    updateResourceTotals();
+    document.getElementById("iconoclasm").disabled = true;
+    var append = "<br />";
+    for (i = 1; i < curCiv.deities.length; ++i) {
+      append += '<button onclick="iconoclasm(' + i + ')">';
+      append += curCiv.deities[i].name;
+      append += "</button><br />";
+    }
+    append += "<br /><button onclick='iconoclasm(\"cancel\")'>Cancel</button>";
+    document.getElementById("iconoclasmList").innerHTML = append;
+  }
+}
+
+function iconoclasm(index) {
+  //will splice a deity from the deities array unless the user has cancelled
+  document.getElementById("iconoclasmList").innerHTML = "";
+  document.getElementById("iconoclasm").disabled = false;
+  if (index == "cancel" || index >= curCiv.deities.length) {
+    //return the piety
+    civData.piety.owned += 1000;
+    return;
+  }
+
+  //give gold
+  civData.gold.owned += Math.floor(Math.pow(curCiv.deities[index].maxDev, 1 / 1.25));
+
+  //remove the deity
+  curCiv.deities.splice(index, 1);
+
+  makeDeitiesTables();
 }
 
 /* Enemies */
@@ -3571,6 +3839,33 @@ function spawnMob(mobObj, num) {
   gameLog(msg);
 
   return num;
+}
+
+function smiteMob(mobObj) {
+  if (!isValid(mobObj.owned) || mobObj.owned <= 0) {
+    return 0;
+  }
+  var num = Math.min(mobObj.owned, Math.floor(civData.piety.owned / 100));
+  civData.piety.owned -= num * 100;
+  mobObj.owned -= num;
+  civData.corpses.owned += num; //xxx Should dead wolves count as corpses?
+  curCiv.enemySlain.owned += num;
+  if (civData.throne.owned) {
+    civData.throne.count += num;
+  }
+  if (civData.book.owned) {
+    civData.piety.owned += num * 10;
+  }
+  gameLog("Struck down " + num + " " + mobObj.getQtyName(num)); // L10N
+  return num;
+}
+
+function smite() {
+  smiteMob(civData.barbarian);
+  smiteMob(civData.bandit);
+  smiteMob(civData.wolf);
+  updateResourceTotals();
+  updateJobButtons();
 }
 
 /* War Functions */
@@ -3610,6 +3905,64 @@ function onInvade(control) {
   return invade(dataset(control, "target"));
 }
 
+function plunder() {
+  var plunderMsg = "";
+
+  // If we fought our largest eligible foe, but not the largest possible, raise the limit.
+  if (curCiv.raid.targetMax != civSizes[civSizes.length - 1].id && curCiv.raid.last == curCiv.raid.targetMax) {
+    curCiv.raid.targetMax = civSizes[civSizes[curCiv.raid.targetMax].idx + 1].id;
+  }
+
+  // Improve morale based on size of defeated foe.
+  adjustMorale((civSizes[curCiv.raid.last].idx + 1) / 100);
+
+  // Lamentation
+  if (civData.lament.owned) {
+    curCiv.attackCounter -= Math.ceil(curCiv.raid.epop / 2000);
+  }
+
+  // Collect loot
+  payFor(curCiv.raid.plunderLoot, -1); // We pay for -1 of these to receive them.
+
+  // Create message to notify player
+  plunderMsg = civSizes[curCiv.raid.last].name + " defeated! ";
+  plunderMsg += "Plundered " + getReqText(curCiv.raid.plunderLoot) + ". ";
+  gameLog(plunderMsg);
+
+  // Victory outcome has been handled, end raid
+  resetRaiding();
+  updateResourceTotals();
+  updateTargets();
+}
+
+function glory(time) {
+  if (time === undefined) {
+    time = 180;
+  }
+  if (!payFor(civData.glory.require)) {
+    return;
+  } //check it can be bought
+
+  civData.glory.timer = time; //set timer
+  //xxx This needs to move into the main loop in case it's reloaded.
+  document.getElementById("gloryTimer").innerHTML = civData.glory.timer; //update timer to player
+  document.getElementById("gloryGroup").style.display = "block";
+}
+
+function grace(delta) {
+  if (delta === undefined) {
+    delta = 0.1;
+  }
+  if (civData.piety.owned >= civData.grace.cost) {
+    civData.piety.owned -= civData.grace.cost;
+    civData.grace.cost = Math.floor(civData.grace.cost * 1.2);
+    document.getElementById("graceCost").innerHTML = prettify(civData.grace.cost);
+    adjustMorale(delta);
+    updateResourceTotals();
+    updateMorale();
+  }
+}
+
 //xxx Eventually, we should have events like deaths affect morale (scaled by %age of total pop)
 function adjustMorale(delta) {
   //Changes and updates morale given a delta value
@@ -3627,6 +3980,50 @@ function adjustMorale(delta) {
     }
     updateMorale(); //update to player
   }
+}
+
+/* Wonders functions */
+
+function startWonder() {
+  if (curCiv.curWonder.stage !== 0) {
+    return;
+  }
+  ++curCiv.curWonder.stage;
+  renameWonder();
+  updateWonder();
+}
+
+function renameWonder() {
+  // Can't rename before you start, or after you finish.
+  if (curCiv.curWonder.stage === 0 || curCiv.curWonder.stage > 2) {
+    return;
+  }
+  var n = prompt("Please name your Wonder:", curCiv.curWonder.name);
+  if (!n) {
+    return;
+  }
+  curCiv.curWonder.name = n;
+  var wp = document.getElementById("wonderNameP");
+  if (wp) {
+    wp.innerHTML = curCiv.curWonder.name;
+  }
+  var wc = document.getElementById("wonderNameC");
+  if (wc) {
+    wc.innerHTML = curCiv.curWonder.name;
+  }
+}
+
+function wonderSelect(resourceId) {
+  if (curCiv.curWonder.stage !== 2) {
+    return;
+  }
+  ++curCiv.curWonder.stage;
+  ++curCiv.curWonder[resourceId];
+  gameLog("You now have a permanent bonus to " + resourceId + " production.");
+  curCiv.wonders.push({ name: curCiv.curWonder.name, resourceId: resourceId });
+  curCiv.curWonder.name = "";
+  curCiv.curWonder.progress = 0;
+  updateWonder();
 }
 
 /* Trade functions */
@@ -3661,6 +4058,42 @@ function tradeTimer() {
   document.getElementById("tradeRequested").innerHTML = prettify(curCiv.trader.requested);
 }
 
+function trade() {
+  //check we have enough of the right type of resources to trade
+  if (!curCiv.trader.materialId || curCiv.trader.materialId.owned < curCiv.trader.requested) {
+    gameLog("Not enough resources to trade.");
+    return;
+  }
+
+  //subtract resources, add gold
+  var material = civData[curCiv.trader.materialId];
+
+  material.owned -= curCiv.trader.requested;
+  ++civData.gold.owned;
+  updateResourceTotals();
+  gameLog("Traded " + curCiv.trader.requested + " " + material.getQtyName(curCiv.trader.requested));
+}
+
+function buy(materialId) {
+  var material = civData[materialId];
+  if (civData.gold.owned < 1) {
+    return;
+  }
+  --civData.gold.owned;
+
+  if (material == civData.food || material == civData.wood || material == civData.stone) {
+    material.owned += 5000;
+  }
+  if (material == civData.skins || material == civData.herbs || material == civData.ore) {
+    material.owned += 500;
+  }
+  if (material == civData.leather || material == civData.metal) {
+    material.owned += 250;
+  }
+
+  updateResourceTotals();
+}
+
 function getWonderCostMultiplier() {
   // Based on the most wonders in any single resource.
   var i;
@@ -3671,6 +4104,17 @@ function getWonderCostMultiplier() {
     }
   }
   return Math.pow(1.5, mostWonders);
+}
+
+function speedWonder() {
+  if (civData.gold.owned < 100) {
+    return;
+  }
+  civData.gold.owned -= 100;
+
+  curCiv.curWonder.progress += 1 / getWonderCostMultiplier();
+  curCiv.curWonder.rushed = true;
+  updateWonder();
 }
 
 // Game infrastructure functions
@@ -4368,6 +4812,18 @@ function save(savetype) {
 
   var settingsVar = settings; // UI Settings are saved separately.
 
+  ////////////////////////////////////////////////////
+
+  // Handle export
+  if (savetype == "export") {
+    var savestring = "[" + JSON.stringify(saveVar) + "]";
+    var compressed = LZString.compressToBase64(savestring);
+    console.log("Compressed save from " + savestring.length + " to " + compressed.length + " characters");
+    document.getElementById("impexpField").value = compressed;
+    gameLog("Exported game to text");
+    return true;
+  }
+
   //set localstorage
   try {
     // Delete the old cookie-based save to avoid mismatched saves
@@ -4383,13 +4839,21 @@ function save(savetype) {
     if (savetype == "auto") {
       console.log("Autosave");
       gameLog("Autosaved");
+    } else if (savetype == "manual") {
+      alert("Game Saved");
+      console.log("Manual Save");
+      gameLog("Saved game");
     }
   } catch (err) {
     handleStorageError(err);
 
-    {
+    if (savetype == "auto") {
       console.log("Autosave Failed");
       gameLog("Autosave Failed");
+    } else if (savetype == "manual") {
+      alert("Save Failed!");
+      console.log("Save Failed");
+      gameLog("Save Failed");
     }
     return false;
   }
@@ -4412,6 +4876,25 @@ function save(savetype) {
   }
 
   return true;
+}
+
+function deleteSave() {
+  //Deletes the current savegame by setting the game's cookies to expire in the past.
+  if (!confirm("Really delete save?")) {
+    return;
+  } //Check the player really wanted to do that.
+
+  try {
+    deleteCookie(saveTag);
+    deleteCookie(saveTag2);
+    localStorage.removeItem(saveTag);
+    localStorage.removeItem(saveTag2);
+    localStorage.removeItem(saveSettingsTag);
+    gameLog("Save Deleted");
+  } catch (err) {
+    handleStorageError(err);
+    alert("Save Deletion Failed!");
+  }
 }
 
 function renameCiv(newName) {
@@ -4490,11 +4973,122 @@ function renameDeity(newName) {
     curCiv.deities.splice(i, 1); // Remove from old position
     if (getCurDeityDomain()) {
       // Does deity have a domain?
-      selectDeity(getCurDeityDomain()); // Automatically pick that domain.
+      selectDeity(getCurDeityDomain(), true); // Automatically pick that domain.
     }
   }
 
   makeDeitiesTables();
+}
+
+function reset() {
+  //Resets the game, keeping some values but resetting most back to their initial values.
+  var msg = "Really reset? You will keep past deities and wonders (and cats)"; //Check player really wanted to do that.
+  if (!confirm(msg)) {
+    return false;
+  } // declined
+
+  // Let each data subpoint re-init.
+  civData.forEach(function (elem) {
+    if (elem instanceof CivObj) {
+      elem.reset();
+    }
+  });
+
+  curCiv.zombie.owned = 0;
+  curCiv.grave.owned = 0;
+  curCiv.enemySlain.owned = 0;
+  curCiv.resourceClicks = 0; // For NeverClick
+  curCiv.attackCounter = 0; // How long since last attack?
+  curCiv.morale = {
+    mod: 1.0,
+    efficiency: 1.0,
+  };
+
+  // If our current deity is powerless, delete it.
+  if (!curCiv.deities[0].maxDev) {
+    curCiv.deities.shift();
+  }
+  // Insert space for a fresh deity.
+  curCiv.deities.unshift({ name: "", domain: "", maxDev: 0 });
+
+  updateRequirements(civData.mill);
+  updateRequirements(civData.fortification);
+  updateRequirements(civData.battleAltar);
+  updateRequirements(civData.fieldsAltar);
+  updateRequirements(civData.underworldAltar);
+  updateRequirements(civData.catAltar);
+
+  population = {
+    current: 0,
+    limit: 0,
+    healthy: 0,
+    totalSick: 0,
+  };
+
+  resetRaiding();
+  curCiv.raid.targetMax = civSizes[0].id;
+
+  curCiv.trader.materialId = "";
+  curCiv.trader.requested = 0;
+  curCiv.trader.timer = 0;
+  curCiv.trader.counter = 0; // How long since last trader?
+
+  curCiv.curWonder.name = "";
+  curCiv.curWonder.stage = 0;
+  curCiv.curWonder.rushed = false;
+  curCiv.curWonder.progress = 0;
+
+  document.getElementById("graceCost").innerHTML = prettify(civData.grace.cost);
+  //Update page with all new values
+  updateResourceTotals();
+  updateUpgrades();
+  updateDeity();
+  makeDeitiesTables();
+  updateDevotion();
+  updateTargets();
+  updateJobButtons();
+  updatePartyButtons();
+  updateWonder();
+  //Reset upgrades and other interface elements that might have been unlocked
+  //xxx Some of this probably isn't needed anymore; the update routines will handle it.
+  document.getElementById("renameDeity").disabled = "true";
+  document.getElementById("raiseDead").disabled = "true";
+  document.getElementById("raiseDead100").disabled = "true";
+  document.getElementById("raiseDeadMax").disabled = "true";
+  document.getElementById("smite").disabled = "true";
+  document.getElementById("wickerman").disabled = "true";
+  document.getElementById("pestControl").disabled = "true";
+  document.getElementById("grace").disabled = "true";
+  document.getElementById("walk").disabled = "true";
+  document.getElementById("ceaseWalk").disabled = "true";
+  document.getElementById("lure").disabled = "true";
+  document.getElementById("companion").disabled = "true";
+  document.getElementById("comfort").disabled = "true";
+  document.getElementById("book").disabled = "true";
+  document.getElementById("feast").disabled = "true";
+  document.getElementById("blessing").disabled = "true";
+  document.getElementById("waste").disabled = "true";
+  document.getElementById("riddle").disabled = "true";
+  document.getElementById("throne").disabled = "true";
+  document.getElementById("glory").disabled = "true";
+  document.getElementById("summonShade").disabled = "true";
+
+  setElemDisplay("deitySelect", civData.temple.owned > 0);
+  setElemDisplay("conquestSelect", civData.barracks.owned > 0);
+  setElemDisplay("tradeSelect", civData.gold.owned > 0);
+
+  document.getElementById("conquest").style.display = "none";
+
+  document.getElementById("tradeContainer").style.display = "none";
+  document.getElementById("tradeUpgradeContainer").style.display = "none";
+  document.getElementById("iconoclasmList").innerHTML = "";
+  document.getElementById("iconoclasm").disabled = false;
+  gameLog("Game Reset"); //Inform player.
+
+  renameCiv();
+  renameRuler();
+
+  return true;
 }
 
 function tickAutosave() {
@@ -5230,6 +5824,46 @@ window.setInterval(function () {
   //console.log("Main loop execution time: " + time + "ms");
 }, 1000); //updates once per second (1000 milliseconds)
 
+/* UI functions */
+
+// Called when user switches between the various panes on the left hand side of the interface
+// Returns the target pane element.
+function paneSelect(control) {
+  var i, oldTarget;
+
+  // Identify the target pane to be activated, and the currently active
+  // selector tab(s).
+  var newTarget = dataset(control, "target");
+  var selectors = document.getElementById("selectors");
+  if (!selectors) {
+    console.log("No selectors found");
+    return null;
+  }
+  var curSelects = selectors.getElementsByClassName("selected");
+
+  // Deselect the old panels.
+  for (i = 0; i < curSelects.length; ++i) {
+    oldTarget = dataset(curSelects[i], "target");
+    if (oldTarget == newTarget) {
+      continue;
+    }
+    document.getElementById(oldTarget).classList.remove("selected");
+    curSelects[i].classList.remove("selected");
+  }
+
+  // Select the new panel.
+  control.classList.add("selected");
+  var targetElem = document.getElementById(newTarget);
+  if (targetElem) {
+    targetElem.classList.add("selected");
+  }
+  return targetElem;
+}
+
+function impExp() {
+  setElemDisplay("impexp"); // Toggles visibility state
+}
+
 function versionAlert() {
   console.log("New Version Available");
   document.getElementById("versionAlert").style.display = "inline";
@@ -5241,13 +5875,23 @@ function prettify(input) {
 }
 
 function setAutosave(value) {
+  if (value !== undefined) {
+    settings.autosave = value;
+  }
   document.getElementById("toggleAutosave").checked = settings.autosave;
+}
+function onToggleAutosave(control) {
+  return setAutosave(control.checked);
 }
 
 function setCustomQuantities(value) {
   var i;
   var elems;
   var curPop = population.current + curCiv.zombie.owned;
+
+  if (value !== undefined) {
+    settings.customIncr = value;
+  }
   document.getElementById("toggleCustomQuantities").checked = settings.customIncr;
 
   setElemDisplay("customJobQuantity", settings.customIncr);
@@ -5300,9 +5944,15 @@ function setCustomQuantities(value) {
     setElemDisplay(elems[i], settings.customIncr);
   }
 }
+function onToggleCustomQuantities(control) {
+  return setCustomQuantities(control.checked);
+}
 
 // Toggles the display of the .notes class
 function setNotes(value) {
+  if (value !== undefined) {
+    settings.notes = value;
+  }
   document.getElementById("toggleNotes").checked = settings.notes;
 
   var i;
@@ -5311,10 +5961,13 @@ function setNotes(value) {
     setElemDisplay(elems[i], settings.notes);
   }
 }
+function onToggleNotes(control) {
+  return setNotes(control.checked);
+}
 
 // value is the desired change in 0.1em units.
 function textSize(value) {
-  {
+  if (value !== undefined) {
     settings.fontSize += 0.1 * value;
   }
   document.getElementById("smallerText").disabled = settings.fontSize <= 0.5;
@@ -5324,16 +5977,25 @@ function textSize(value) {
 }
 
 function setShadow(value) {
+  if (value !== undefined) {
+    settings.textShadow = value;
+  }
   document.getElementById("toggleShadow").checked = settings.textShadow;
   var shadowStyle =
     "3px 0 0 #fff, -3px 0 0 #fff, 0 3px 0 #fff, 0 -3px 0 #fff" +
     ", 2px 2px 0 #fff, -2px -2px 0 #fff, 2px -2px 0 #fff, -2px 2px 0 #fff";
   body.style.textShadow = settings.textShadow ? shadowStyle : "none";
 }
+function onToggleShadow(control) {
+  return setShadow(control.checked);
+}
 
 // Does nothing yet, will probably toggle display for "icon" and "word" classes
 // as that's probably the simplest way to do this.
 function setIcons(value) {
+  if (value !== undefined) {
+    settings.useIcons = value;
+  }
   document.getElementById("toggleIcons").checked = settings.useIcons;
 
   var i;
@@ -5343,13 +6005,25 @@ function setIcons(value) {
     elems[i].style.visibility = settings.useIcons && !settings.worksafe ? "visible" : "hidden";
   }
 }
+function onToggleIcons(control) {
+  return setIcons(control.checked);
+}
 
 function setDelimiters(value) {
+  if (value !== undefined) {
+    settings.delimiters = value;
+  }
   document.getElementById("toggleDelimiters").checked = settings.delimiters;
   updateResourceTotals();
 }
+function onToggleDelimiters(control) {
+  return setDelimiters(control.checked);
+}
 
 function setWorksafe(value) {
+  if (value !== undefined) {
+    settings.worksafe = value;
+  }
   document.getElementById("toggleWorksafe").checked = settings.worksafe;
 
   //xxx Should this be applied to the document instead of the body?
@@ -5360,6 +6034,9 @@ function setWorksafe(value) {
   }
 
   setIcons(); // Worksafe overrides icon settings.
+}
+function onToggleWorksafe(control) {
+  return setWorksafe(control.checked);
 }
 
 /* Debug functions */
@@ -5398,6 +6075,39 @@ function gameLog(message) {
   } // Optional (xNumber)
   s += "</td>";
   document.getElementById("log0").innerHTML = s;
+}
+
+function updateTest() {
+  //Debug function, runs the update() function 1000 times, adds the results together, and calculates a mean
+  var total = 0;
+  var i;
+  for (i = 0; i < 1000; i++) {
+    total += update();
+  }
+  console.log(total);
+  total = total / 1000;
+  console.log(total);
+}
+
+function ruinFun() {
+  //Debug function adds loads of stuff for free to help with testing.
+  civData.food.owned += 1000000;
+  civData.wood.owned += 1000000;
+  civData.stone.owned += 1000000;
+  civData.barn.owned += 5000;
+  civData.woodstock.owned += 5000;
+  civData.stonestock.owned += 5000;
+  civData.herbs.owned += 1000000;
+  civData.skins.owned += 1000000;
+  civData.ore.owned += 1000000;
+  civData.leather.owned += 1000000;
+  civData.metal.owned += 1000000;
+  civData.piety.owned += 1000000;
+  civData.gold.owned += 10000;
+  renameRuler("Cheater");
+  updatePopulation();
+  updateUpgrades();
+  updateResourceTotals();
 }
 
 /*
