@@ -6138,3 +6138,16 @@ function ruinFun() {
  *
  *     David Holley
  */
+
+// TEMP: expose these for html element onclick events
+window.impExp = impExp;
+window.save = save;
+window.load = load;
+window.paneSelect = paneSelect;
+window.onToggleAutosave = onToggleAutosave;
+window.onToggleCustomQuantities = onToggleCustomQuantities;
+window.onToggleDelimiters = onToggleDelimiters;
+window.onToggleShadow = onToggleShadow;
+window.onToggleNotes = onToggleNotes;
+window.onToggleWorksafe = onToggleWorksafe;
+window.onToggleIcons = onToggleIcons;

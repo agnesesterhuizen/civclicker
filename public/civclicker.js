@@ -5307,6 +5307,18 @@ function save(savetype) {
 
   var settingsVar = settings; // UI Settings are saved separately.
 
+  ////////////////////////////////////////////////////
+
+  // Handle export
+  if (savetype == "export") {
+    var savestring = "[" + JSON.stringify(saveVar) + "]";
+    var compressed = LZString.compressToBase64(savestring);
+    console.log("Compressed save from " + savestring.length + " to " + compressed.length + " characters");
+    document.getElementById("impexpField").value = compressed;
+    gameLog("Exported game to text");
+    return true;
+  }
+
   //set localstorage
   try {
     // Delete the old cookie-based save to avoid mismatched saves
@@ -5322,13 +5334,21 @@ function save(savetype) {
     if (savetype == "auto") {
       console.log("Autosave");
       gameLog("Autosaved");
+    } else if (savetype == "manual") {
+      alert("Game Saved");
+      console.log("Manual Save");
+      gameLog("Saved game");
     }
   } catch (err) {
     handleStorageError(err);
 
-    {
+    if (savetype == "auto") {
       console.log("Autosave Failed");
       gameLog("Autosave Failed");
+    } else if (savetype == "manual") {
+      alert("Save Failed!");
+      console.log("Save Failed");
+      gameLog("Save Failed");
     }
     return false;
   }
@@ -6169,6 +6189,46 @@ window.setInterval(function () {
   //console.log("Main loop execution time: " + time + "ms");
 }, 1000); //updates once per second (1000 milliseconds)
 
+/* UI functions */
+
+// Called when user switches between the various panes on the left hand side of the interface
+// Returns the target pane element.
+function paneSelect(control) {
+  var i, oldTarget;
+
+  // Identify the target pane to be activated, and the currently active
+  // selector tab(s).
+  var newTarget = dataset(control, "target");
+  var selectors = document.getElementById("selectors");
+  if (!selectors) {
+    console.log("No selectors found");
+    return null;
+  }
+  var curSelects = selectors.getElementsByClassName("selected");
+
+  // Deselect the old panels.
+  for (i = 0; i < curSelects.length; ++i) {
+    oldTarget = dataset(curSelects[i], "target");
+    if (oldTarget == newTarget) {
+      continue;
+    }
+    document.getElementById(oldTarget).classList.remove("selected");
+    curSelects[i].classList.remove("selected");
+  }
+
+  // Select the new panel.
+  control.classList.add("selected");
+  var targetElem = document.getElementById(newTarget);
+  if (targetElem) {
+    targetElem.classList.add("selected");
+  }
+  return targetElem;
+}
+
+function impExp() {
+  setElemDisplay("impexp"); // Toggles visibility state
+}
+
 function versionAlert() {
   console.log("New Version Available");
   document.getElementById("versionAlert").style.display = "inline";
@@ -6180,13 +6240,23 @@ function prettify(input) {
 }
 
 function setAutosave(value) {
+  if (value !== undefined) {
+    settings.autosave = value;
+  }
   document.getElementById("toggleAutosave").checked = settings.autosave;
+}
+function onToggleAutosave(control) {
+  return setAutosave(control.checked);
 }
 
 function setCustomQuantities(value) {
   var i;
   var elems;
   var curPop = population.current + curCiv.zombie.owned;
+
+  if (value !== undefined) {
+    settings.customIncr = value;
+  }
   document.getElementById("toggleCustomQuantities").checked = settings.customIncr;
 
   setElemDisplay("customJobQuantity", settings.customIncr);
@@ -6239,9 +6309,15 @@ function setCustomQuantities(value) {
     setElemDisplay(elems[i], settings.customIncr);
   }
 }
+function onToggleCustomQuantities(control) {
+  return setCustomQuantities(control.checked);
+}
 
 // Toggles the display of the .notes class
 function setNotes(value) {
+  if (value !== undefined) {
+    settings.notes = value;
+  }
   document.getElementById("toggleNotes").checked = settings.notes;
 
   var i;
@@ -6249,6 +6325,9 @@ function setNotes(value) {
   for (i = 0; i < elems.length; ++i) {
     setElemDisplay(elems[i], settings.notes);
   }
+}
+function onToggleNotes(control) {
+  return setNotes(control.checked);
 }
 
 // value is the desired change in 0.1em units.
@@ -6263,16 +6342,25 @@ function textSize(value) {
 }
 
 function setShadow(value) {
+  if (value !== undefined) {
+    settings.textShadow = value;
+  }
   document.getElementById("toggleShadow").checked = settings.textShadow;
   var shadowStyle =
     "3px 0 0 #fff, -3px 0 0 #fff, 0 3px 0 #fff, 0 -3px 0 #fff" +
     ", 2px 2px 0 #fff, -2px -2px 0 #fff, 2px -2px 0 #fff, -2px 2px 0 #fff";
   body.style.textShadow = settings.textShadow ? shadowStyle : "none";
 }
+function onToggleShadow(control) {
+  return setShadow(control.checked);
+}
 
 // Does nothing yet, will probably toggle display for "icon" and "word" classes
 // as that's probably the simplest way to do this.
 function setIcons(value) {
+  if (value !== undefined) {
+    settings.useIcons = value;
+  }
   document.getElementById("toggleIcons").checked = settings.useIcons;
 
   var i;
@@ -6282,13 +6370,25 @@ function setIcons(value) {
     elems[i].style.visibility = settings.useIcons && !settings.worksafe ? "visible" : "hidden";
   }
 }
+function onToggleIcons(control) {
+  return setIcons(control.checked);
+}
 
 function setDelimiters(value) {
+  if (value !== undefined) {
+    settings.delimiters = value;
+  }
   document.getElementById("toggleDelimiters").checked = settings.delimiters;
   updateResourceTotals();
 }
+function onToggleDelimiters(control) {
+  return setDelimiters(control.checked);
+}
 
 function setWorksafe(value) {
+  if (value !== undefined) {
+    settings.worksafe = value;
+  }
   document.getElementById("toggleWorksafe").checked = settings.worksafe;
 
   //xxx Should this be applied to the document instead of the body?
@@ -6299,6 +6399,9 @@ function setWorksafe(value) {
   }
 
   setIcons(); // Worksafe overrides icon settings.
+}
+function onToggleWorksafe(control) {
+  return setWorksafe(control.checked);
 }
 
 /* Debug functions */
@@ -6347,3 +6450,16 @@ function gameLog(message) {
  *
  *     David Holley
  */
+
+// TEMP: expose these for html element onclick events
+window.impExp = impExp;
+window.save = save;
+window.load = load;
+window.paneSelect = paneSelect;
+window.onToggleAutosave = onToggleAutosave;
+window.onToggleCustomQuantities = onToggleCustomQuantities;
+window.onToggleDelimiters = onToggleDelimiters;
+window.onToggleShadow = onToggleShadow;
+window.onToggleNotes = onToggleNotes;
+window.onToggleWorksafe = onToggleWorksafe;
+window.onToggleIcons = onToggleIcons;
