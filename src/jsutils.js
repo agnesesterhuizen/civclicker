@@ -1,3 +1,5 @@
+// @ts-check
+
 "use strict";
 /**
     CivClicker
@@ -18,13 +20,13 @@
     If it is not there, see <http://www.gnu.org/licenses/>.
 **/
 
-function isValid(variable) {
+export function isValid(variable) {
   return variable !== null && variable !== undefined && variable === variable; // This is a way to test for NaN that
   // isn't subject to the unexpected behavior of isNaN().
 }
 
 // Returns the variable if it's valid, otherwise the default value (or "")
-function ifValid(variable, defVal) {
+export function ifValid(variable, defVal) {
   if (defVal === undefined) {
     defVal = "";
   }
@@ -34,11 +36,11 @@ function ifValid(variable, defVal) {
 // Evaluates and returns variable if it's a function, otherwise just returns it.
 // Passes surplus arguments on to the function.
 //xxx argument forwarding needs testing.
-function valOf(variable) {
+export function valOf(variable) {
   return typeof variable == "function" ? variable.apply(this, Array.prototype.slice.call(arguments, 1)) : variable;
 }
 
-function bake_cookie(name, value) {
+export function bake_cookie(name, value) {
   var exdate = new Date();
   exdate.setDate(exdate.getDate() + 30);
   var cookie = [
@@ -53,7 +55,7 @@ function bake_cookie(name, value) {
   ].join("");
   document.cookie = cookie;
 }
-function read_cookie(name) {
+export function read_cookie(name) {
   var result = document.cookie.match(new RegExp(name + "=([^;]+)"));
   if (result) {
     result = JSON.parse(result[1]);
@@ -64,7 +66,7 @@ function read_cookie(name) {
 
 // Calculates the summation of elements (n...m] of the arithmetic sequence
 // with increment "incr".
-function calcArithSum(incr, n, m) {
+export function calcArithSum(incr, n, m) {
   // Default to just element n+1, if m isn't given.
   if (m === undefined) {
     m = n + 1;
@@ -75,7 +77,7 @@ function calcArithSum(incr, n, m) {
 // Search for the largest integer X that generates func(X) < limitY.
 // func should be a continuous increasing numeric function.
 //xxx This would probably be more elegant written recursively.
-function logSearchFn(func, limitY) {
+export function logSearchFn(func, limitY) {
   var minX = 0;
   var maxX = 0;
   var curX = 0;
@@ -105,7 +107,7 @@ function logSearchFn(func, limitY) {
 
 // Recursively merge the properties of one object into another.
 // Similar (though not identical) to jQuery.extend()
-function mergeObj(o1, o2) {
+export function mergeObj(o1, o2) {
   var i;
 
   if (o2 === undefined) {
@@ -135,7 +137,7 @@ function mergeObj(o1, o2) {
 // Compensates for IE's lack of support for the "initial" property value.
 // May not support all HTML elements.
 // Returns the input visibility state, or undefined on an error.
-function setElemDisplay(htmlElem, visible) {
+export function setElemDisplay(htmlElem, visible) {
   // If we're passed a string, assume it's the element ID.
   if (typeof htmlElem === "string") {
     htmlElem = document.getElementById(htmlElem);
@@ -214,7 +216,7 @@ function setElemDisplay(htmlElem, visible) {
 // Also searches up the DOM tree on lookups, to mimic inheritance.
 // Pass 'value' to set the value, otherwise returns the value.
 // Returns "true" and "false" as actual booleans.
-function dataset(elem, attr, value) {
+export function dataset(elem, attr, value) {
   if (value !== undefined) {
     return elem.setAttribute("data-" + attr, value);
   }
@@ -233,7 +235,7 @@ function dataset(elem, attr, value) {
 }
 
 // Probabilistic rounding function
-function rndRound(num) {
+export function rndRound(num) {
   var baseVal = Math.floor(num);
   return baseVal + (Math.random() < num - baseVal ? 1 : 0);
 }
@@ -241,7 +243,7 @@ function rndRound(num) {
 // Copy properties from to dest from src
 // If 'names' array supplied, only copies the named properties
 // If 'deleteOld' is true, deletes the properties from the old object
-function copyProps(dest, src, names, deleteOld) {
+export function copyProps(dest, src, names, deleteOld) {
   if (!(names instanceof Array)) {
     names = Object.getOwnPropertyNames(src);
   }
@@ -262,7 +264,7 @@ function copyProps(dest, src, names, deleteOld) {
 }
 
 // Delete the specified named cookie
-function deleteCookie(cookieName) {
+export function deleteCookie(cookieName) {
   document.cookie = [
     cookieName,
     "=; expires=Thu, 01-Jan-1970 00:00:01 GMT; path=/; domain=.",
@@ -271,7 +273,7 @@ function deleteCookie(cookieName) {
 }
 
 // Get the fundamental object of the given type
-function getStdObj(typeName) {
+export function getStdObj(typeName) {
   switch (typeName) {
     case "object":
       return Object;
@@ -289,14 +291,14 @@ function getStdObj(typeName) {
 }
 
 // Return one variable, coerced to the type of another.
-function matchType(inVar, toMatch) {
+export function matchType(inVar, toMatch) {
   return getStdObj(typeof toMatch)(inVar);
 }
 
 // Adds indices for the specified array.
 // Looks for the specified attribute in each array entry, and adds an alias for
 // it at the top level.
-function indexArrayByAttr(inArray, attr) {
+export function indexArrayByAttr(inArray, attr) {
   inArray.forEach(function (elem, ignore, arr) {
     // Add a named alias to each entry.
     if (isValid(elem[attr]) && !isValid(arr[elem[attr]])) {

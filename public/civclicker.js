@@ -1,11 +1,950 @@
 'use strict';
 
-/*jslint browser: true, devel: true, passfail: false, continue: true, eqeq: true, plusplus: true, vars: true, white: true, indent: 4, maxerr: 999 */
-/* Note:  I'm not going to bother using JSLint anymore, as it no longer allows
- * you to ignore its author's personal coding style preferences.  I'll use
- * JSHint instead. */
-/* jshint laxbreak: true, laxcomma: true */
-/* global updateJobButtons,updatePurchaseRow,updateResourceTotals,updateBuildingTotals,updateMobs,updateDeity,updateUpgrades,updateOldDeities,updateDevotion,updateParty,updateMorale,updateWonder,updatePopulation,calcCost,updateJobs,updateAchievements,updateTargets,updateWonderList,digGraves,renameDeity,spawnMob,renameWonder,adjustMorale,versionAlert,gameLog,prettify,LZString,bake_cookie,read_cookie,prettify,updateRequirements,calcWorkerCost,mergeObj,isValid,setElemDisplay,rndRound,playerCombatMods,dataset,copyProps,updatePopulationUI,calcZombieCost,logSearchFn,getCustomNumber,calcArithSum,SecurityError,doSlaughter,doLoot,doHavoc,valOf,setAutosave,setCustomQuantities,textSize,setDelimiters,setShadow,setNotes,setWorksafe,setIcons,deleteCookie,matchType,addPUpgradeRows,indexArrayByAttr */
+// Copyright (c) 2013 Pieroxy <pieroxy@pieroxy.net>
+// This work is free. You can redistribute it and/or modify it
+// under the terms of the WTFPL, Version 2
+// For more information see LICENSE.txt or http://www.wtfpl.net/
+//
+// For more information, the home page:
+// http://pieroxy.net/blog/pages/lz-string/testing.html
+//
+// LZ-based compression algorithm, version 1.3.3
+var LZString = {
+  // private property
+  _keyStr: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=",
+  _f: String.fromCharCode,
+
+  compressToBase64: function (input) {
+    if (input == null) return "";
+    var output = "";
+    var chr1, chr2, chr3, enc1, enc2, enc3, enc4;
+    var i = 0;
+
+    input = LZString.compress(input);
+
+    while (i < input.length * 2) {
+      if (i % 2 == 0) {
+        chr1 = input.charCodeAt(i / 2) >> 8;
+        chr2 = input.charCodeAt(i / 2) & 255;
+        if (i / 2 + 1 < input.length) chr3 = input.charCodeAt(i / 2 + 1) >> 8;
+        else chr3 = NaN;
+      } else {
+        chr1 = input.charCodeAt((i - 1) / 2) & 255;
+        if ((i + 1) / 2 < input.length) {
+          chr2 = input.charCodeAt((i + 1) / 2) >> 8;
+          chr3 = input.charCodeAt((i + 1) / 2) & 255;
+        } else chr2 = chr3 = NaN;
+      }
+      i += 3;
+
+      enc1 = chr1 >> 2;
+      enc2 = ((chr1 & 3) << 4) | (chr2 >> 4);
+      enc3 = ((chr2 & 15) << 2) | (chr3 >> 6);
+      enc4 = chr3 & 63;
+
+      if (isNaN(chr2)) {
+        enc3 = enc4 = 64;
+      } else if (isNaN(chr3)) {
+        enc4 = 64;
+      }
+
+      output =
+        output +
+        LZString._keyStr.charAt(enc1) +
+        LZString._keyStr.charAt(enc2) +
+        LZString._keyStr.charAt(enc3) +
+        LZString._keyStr.charAt(enc4);
+    }
+
+    return output;
+  },
+
+  decompressFromBase64: function (input) {
+    if (input == null) return "";
+    var output = "",
+      ol = 0,
+      output_,
+      chr1,
+      chr2,
+      chr3,
+      enc1,
+      enc2,
+      enc3,
+      enc4,
+      i = 0,
+      f = LZString._f;
+
+    input = input.replace(/[^A-Za-z0-9\+\/\=]/g, "");
+
+    while (i < input.length) {
+      enc1 = LZString._keyStr.indexOf(input.charAt(i++));
+      enc2 = LZString._keyStr.indexOf(input.charAt(i++));
+      enc3 = LZString._keyStr.indexOf(input.charAt(i++));
+      enc4 = LZString._keyStr.indexOf(input.charAt(i++));
+
+      chr1 = (enc1 << 2) | (enc2 >> 4);
+      chr2 = ((enc2 & 15) << 4) | (enc3 >> 2);
+      chr3 = ((enc3 & 3) << 6) | enc4;
+
+      if (ol % 2 == 0) {
+        output_ = chr1 << 8;
+
+        if (enc3 != 64) {
+          output += f(output_ | chr2);
+        }
+        if (enc4 != 64) {
+          output_ = chr3 << 8;
+        }
+      } else {
+        output = output + f(output_ | chr1);
+
+        if (enc3 != 64) {
+          output_ = chr2 << 8;
+        }
+        if (enc4 != 64) {
+          output += f(output_ | chr3);
+        }
+      }
+      ol += 3;
+    }
+
+    return LZString.decompress(output);
+  },
+
+  compressToUTF16: function (input) {
+    if (input == null) return "";
+    var output = "",
+      i,
+      c,
+      current,
+      status = 0,
+      f = LZString._f;
+
+    input = LZString.compress(input);
+
+    for (i = 0; i < input.length; i++) {
+      c = input.charCodeAt(i);
+      switch (status++) {
+        case 0:
+          output += f((c >> 1) + 32);
+          current = (c & 1) << 14;
+          break;
+        case 1:
+          output += f(current + (c >> 2) + 32);
+          current = (c & 3) << 13;
+          break;
+        case 2:
+          output += f(current + (c >> 3) + 32);
+          current = (c & 7) << 12;
+          break;
+        case 3:
+          output += f(current + (c >> 4) + 32);
+          current = (c & 15) << 11;
+          break;
+        case 4:
+          output += f(current + (c >> 5) + 32);
+          current = (c & 31) << 10;
+          break;
+        case 5:
+          output += f(current + (c >> 6) + 32);
+          current = (c & 63) << 9;
+          break;
+        case 6:
+          output += f(current + (c >> 7) + 32);
+          current = (c & 127) << 8;
+          break;
+        case 7:
+          output += f(current + (c >> 8) + 32);
+          current = (c & 255) << 7;
+          break;
+        case 8:
+          output += f(current + (c >> 9) + 32);
+          current = (c & 511) << 6;
+          break;
+        case 9:
+          output += f(current + (c >> 10) + 32);
+          current = (c & 1023) << 5;
+          break;
+        case 10:
+          output += f(current + (c >> 11) + 32);
+          current = (c & 2047) << 4;
+          break;
+        case 11:
+          output += f(current + (c >> 12) + 32);
+          current = (c & 4095) << 3;
+          break;
+        case 12:
+          output += f(current + (c >> 13) + 32);
+          current = (c & 8191) << 2;
+          break;
+        case 13:
+          output += f(current + (c >> 14) + 32);
+          current = (c & 16383) << 1;
+          break;
+        case 14:
+          output += f(current + (c >> 15) + 32, (c & 32767) + 32);
+          status = 0;
+          break;
+      }
+    }
+
+    return output + f(current + 32);
+  },
+
+  decompressFromUTF16: function (input) {
+    if (input == null) return "";
+    var output = "",
+      current,
+      c,
+      status = 0,
+      i = 0,
+      f = LZString._f;
+
+    while (i < input.length) {
+      c = input.charCodeAt(i) - 32;
+
+      switch (status++) {
+        case 0:
+          current = c << 1;
+          break;
+        case 1:
+          output += f(current | (c >> 14));
+          current = (c & 16383) << 2;
+          break;
+        case 2:
+          output += f(current | (c >> 13));
+          current = (c & 8191) << 3;
+          break;
+        case 3:
+          output += f(current | (c >> 12));
+          current = (c & 4095) << 4;
+          break;
+        case 4:
+          output += f(current | (c >> 11));
+          current = (c & 2047) << 5;
+          break;
+        case 5:
+          output += f(current | (c >> 10));
+          current = (c & 1023) << 6;
+          break;
+        case 6:
+          output += f(current | (c >> 9));
+          current = (c & 511) << 7;
+          break;
+        case 7:
+          output += f(current | (c >> 8));
+          current = (c & 255) << 8;
+          break;
+        case 8:
+          output += f(current | (c >> 7));
+          current = (c & 127) << 9;
+          break;
+        case 9:
+          output += f(current | (c >> 6));
+          current = (c & 63) << 10;
+          break;
+        case 10:
+          output += f(current | (c >> 5));
+          current = (c & 31) << 11;
+          break;
+        case 11:
+          output += f(current | (c >> 4));
+          current = (c & 15) << 12;
+          break;
+        case 12:
+          output += f(current | (c >> 3));
+          current = (c & 7) << 13;
+          break;
+        case 13:
+          output += f(current | (c >> 2));
+          current = (c & 3) << 14;
+          break;
+        case 14:
+          output += f(current | (c >> 1));
+          current = (c & 1) << 15;
+          break;
+        case 15:
+          output += f(current | c);
+          status = 0;
+          break;
+      }
+
+      i++;
+    }
+
+    return LZString.decompress(output);
+    //return output;
+  },
+
+  compress: function (uncompressed) {
+    if (uncompressed == null) return "";
+    var i,
+      value,
+      context_dictionary = {},
+      context_dictionaryToCreate = {},
+      context_c = "",
+      context_wc = "",
+      context_w = "",
+      context_enlargeIn = 2, // Compensate for the first entry which should not count
+      context_dictSize = 3,
+      context_numBits = 2,
+      context_data_string = "",
+      context_data_val = 0,
+      context_data_position = 0,
+      ii,
+      f = LZString._f;
+
+    for (ii = 0; ii < uncompressed.length; ii += 1) {
+      context_c = uncompressed.charAt(ii);
+      if (!Object.prototype.hasOwnProperty.call(context_dictionary, context_c)) {
+        context_dictionary[context_c] = context_dictSize++;
+        context_dictionaryToCreate[context_c] = true;
+      }
+
+      context_wc = context_w + context_c;
+      if (Object.prototype.hasOwnProperty.call(context_dictionary, context_wc)) {
+        context_w = context_wc;
+      } else {
+        if (Object.prototype.hasOwnProperty.call(context_dictionaryToCreate, context_w)) {
+          if (context_w.charCodeAt(0) < 256) {
+            for (i = 0; i < context_numBits; i++) {
+              context_data_val = context_data_val << 1;
+              if (context_data_position == 15) {
+                context_data_position = 0;
+                context_data_string += f(context_data_val);
+                context_data_val = 0;
+              } else {
+                context_data_position++;
+              }
+            }
+            value = context_w.charCodeAt(0);
+            for (i = 0; i < 8; i++) {
+              context_data_val = (context_data_val << 1) | (value & 1);
+              if (context_data_position == 15) {
+                context_data_position = 0;
+                context_data_string += f(context_data_val);
+                context_data_val = 0;
+              } else {
+                context_data_position++;
+              }
+              value = value >> 1;
+            }
+          } else {
+            value = 1;
+            for (i = 0; i < context_numBits; i++) {
+              context_data_val = (context_data_val << 1) | value;
+              if (context_data_position == 15) {
+                context_data_position = 0;
+                context_data_string += f(context_data_val);
+                context_data_val = 0;
+              } else {
+                context_data_position++;
+              }
+              value = 0;
+            }
+            value = context_w.charCodeAt(0);
+            for (i = 0; i < 16; i++) {
+              context_data_val = (context_data_val << 1) | (value & 1);
+              if (context_data_position == 15) {
+                context_data_position = 0;
+                context_data_string += f(context_data_val);
+                context_data_val = 0;
+              } else {
+                context_data_position++;
+              }
+              value = value >> 1;
+            }
+          }
+          context_enlargeIn--;
+          if (context_enlargeIn == 0) {
+            context_enlargeIn = Math.pow(2, context_numBits);
+            context_numBits++;
+          }
+          delete context_dictionaryToCreate[context_w];
+        } else {
+          value = context_dictionary[context_w];
+          for (i = 0; i < context_numBits; i++) {
+            context_data_val = (context_data_val << 1) | (value & 1);
+            if (context_data_position == 15) {
+              context_data_position = 0;
+              context_data_string += f(context_data_val);
+              context_data_val = 0;
+            } else {
+              context_data_position++;
+            }
+            value = value >> 1;
+          }
+        }
+        context_enlargeIn--;
+        if (context_enlargeIn == 0) {
+          context_enlargeIn = Math.pow(2, context_numBits);
+          context_numBits++;
+        }
+        // Add wc to the dictionary.
+        context_dictionary[context_wc] = context_dictSize++;
+        context_w = String(context_c);
+      }
+    }
+
+    // Output the code for w.
+    if (context_w !== "") {
+      if (Object.prototype.hasOwnProperty.call(context_dictionaryToCreate, context_w)) {
+        if (context_w.charCodeAt(0) < 256) {
+          for (i = 0; i < context_numBits; i++) {
+            context_data_val = context_data_val << 1;
+            if (context_data_position == 15) {
+              context_data_position = 0;
+              context_data_string += f(context_data_val);
+              context_data_val = 0;
+            } else {
+              context_data_position++;
+            }
+          }
+          value = context_w.charCodeAt(0);
+          for (i = 0; i < 8; i++) {
+            context_data_val = (context_data_val << 1) | (value & 1);
+            if (context_data_position == 15) {
+              context_data_position = 0;
+              context_data_string += f(context_data_val);
+              context_data_val = 0;
+            } else {
+              context_data_position++;
+            }
+            value = value >> 1;
+          }
+        } else {
+          value = 1;
+          for (i = 0; i < context_numBits; i++) {
+            context_data_val = (context_data_val << 1) | value;
+            if (context_data_position == 15) {
+              context_data_position = 0;
+              context_data_string += f(context_data_val);
+              context_data_val = 0;
+            } else {
+              context_data_position++;
+            }
+            value = 0;
+          }
+          value = context_w.charCodeAt(0);
+          for (i = 0; i < 16; i++) {
+            context_data_val = (context_data_val << 1) | (value & 1);
+            if (context_data_position == 15) {
+              context_data_position = 0;
+              context_data_string += f(context_data_val);
+              context_data_val = 0;
+            } else {
+              context_data_position++;
+            }
+            value = value >> 1;
+          }
+        }
+        context_enlargeIn--;
+        if (context_enlargeIn == 0) {
+          context_enlargeIn = Math.pow(2, context_numBits);
+          context_numBits++;
+        }
+        delete context_dictionaryToCreate[context_w];
+      } else {
+        value = context_dictionary[context_w];
+        for (i = 0; i < context_numBits; i++) {
+          context_data_val = (context_data_val << 1) | (value & 1);
+          if (context_data_position == 15) {
+            context_data_position = 0;
+            context_data_string += f(context_data_val);
+            context_data_val = 0;
+          } else {
+            context_data_position++;
+          }
+          value = value >> 1;
+        }
+      }
+      context_enlargeIn--;
+      if (context_enlargeIn == 0) {
+        context_enlargeIn = Math.pow(2, context_numBits);
+        context_numBits++;
+      }
+    }
+
+    // Mark the end of the stream
+    value = 2;
+    for (i = 0; i < context_numBits; i++) {
+      context_data_val = (context_data_val << 1) | (value & 1);
+      if (context_data_position == 15) {
+        context_data_position = 0;
+        context_data_string += f(context_data_val);
+        context_data_val = 0;
+      } else {
+        context_data_position++;
+      }
+      value = value >> 1;
+    }
+
+    // Flush the last char
+    while (true) {
+      context_data_val = context_data_val << 1;
+      if (context_data_position == 15) {
+        context_data_string += f(context_data_val);
+        break;
+      } else context_data_position++;
+    }
+    return context_data_string;
+  },
+
+  decompress: function (compressed) {
+    if (compressed == null) return "";
+    if (compressed == "") return null;
+    var dictionary = [],
+      enlargeIn = 4,
+      dictSize = 4,
+      numBits = 3,
+      entry = "",
+      result = "",
+      i,
+      w,
+      bits,
+      resb,
+      maxpower,
+      power,
+      c,
+      f = LZString._f,
+      data = { string: compressed, val: compressed.charCodeAt(0), position: 32768, index: 1 };
+
+    for (i = 0; i < 3; i += 1) {
+      dictionary[i] = i;
+    }
+
+    bits = 0;
+    maxpower = Math.pow(2, 2);
+    power = 1;
+    while (power != maxpower) {
+      resb = data.val & data.position;
+      data.position >>= 1;
+      if (data.position == 0) {
+        data.position = 32768;
+        data.val = data.string.charCodeAt(data.index++);
+      }
+      bits |= (resb > 0 ? 1 : 0) * power;
+      power <<= 1;
+    }
+
+    switch ((bits)) {
+      case 0:
+        bits = 0;
+        maxpower = Math.pow(2, 8);
+        power = 1;
+        while (power != maxpower) {
+          resb = data.val & data.position;
+          data.position >>= 1;
+          if (data.position == 0) {
+            data.position = 32768;
+            data.val = data.string.charCodeAt(data.index++);
+          }
+          bits |= (resb > 0 ? 1 : 0) * power;
+          power <<= 1;
+        }
+        c = f(bits);
+        break;
+      case 1:
+        bits = 0;
+        maxpower = Math.pow(2, 16);
+        power = 1;
+        while (power != maxpower) {
+          resb = data.val & data.position;
+          data.position >>= 1;
+          if (data.position == 0) {
+            data.position = 32768;
+            data.val = data.string.charCodeAt(data.index++);
+          }
+          bits |= (resb > 0 ? 1 : 0) * power;
+          power <<= 1;
+        }
+        c = f(bits);
+        break;
+      case 2:
+        return "";
+    }
+    dictionary[3] = c;
+    w = result = c;
+    while (true) {
+      if (data.index > data.string.length) {
+        return "";
+      }
+
+      bits = 0;
+      maxpower = Math.pow(2, numBits);
+      power = 1;
+      while (power != maxpower) {
+        resb = data.val & data.position;
+        data.position >>= 1;
+        if (data.position == 0) {
+          data.position = 32768;
+          data.val = data.string.charCodeAt(data.index++);
+        }
+        bits |= (resb > 0 ? 1 : 0) * power;
+        power <<= 1;
+      }
+
+      switch ((c = bits)) {
+        case 0:
+          bits = 0;
+          maxpower = Math.pow(2, 8);
+          power = 1;
+          while (power != maxpower) {
+            resb = data.val & data.position;
+            data.position >>= 1;
+            if (data.position == 0) {
+              data.position = 32768;
+              data.val = data.string.charCodeAt(data.index++);
+            }
+            bits |= (resb > 0 ? 1 : 0) * power;
+            power <<= 1;
+          }
+
+          dictionary[dictSize++] = f(bits);
+          c = dictSize - 1;
+          enlargeIn--;
+          break;
+        case 1:
+          bits = 0;
+          maxpower = Math.pow(2, 16);
+          power = 1;
+          while (power != maxpower) {
+            resb = data.val & data.position;
+            data.position >>= 1;
+            if (data.position == 0) {
+              data.position = 32768;
+              data.val = data.string.charCodeAt(data.index++);
+            }
+            bits |= (resb > 0 ? 1 : 0) * power;
+            power <<= 1;
+          }
+          dictionary[dictSize++] = f(bits);
+          c = dictSize - 1;
+          enlargeIn--;
+          break;
+        case 2:
+          return result;
+      }
+
+      if (enlargeIn == 0) {
+        enlargeIn = Math.pow(2, numBits);
+        numBits++;
+      }
+
+      if (dictionary[c]) {
+        entry = dictionary[c];
+      } else {
+        if (c === dictSize) {
+          entry = w + w.charAt(0);
+        } else {
+          return null;
+        }
+      }
+      result += entry;
+
+      // Add w+entry[0] to the dictionary.
+      dictionary[dictSize++] = w + entry.charAt(0);
+      enlargeIn--;
+
+      w = entry;
+
+      if (enlargeIn == 0) {
+        enlargeIn = Math.pow(2, numBits);
+        numBits++;
+      }
+    }
+  },
+};
+
+if (typeof module !== "undefined" && module != null) {
+  module.exports = LZString;
+}
+
+// @ts-check
+
+/**
+    CivClicker
+    Copyright (C) 2017; see the AUTHORS file for authorship.
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program in the LICENSE file.
+    If it is not there, see <http://www.gnu.org/licenses/>.
+**/
+
+function isValid(variable) {
+  return variable !== null && variable !== undefined && variable === variable; // This is a way to test for NaN that
+  // isn't subject to the unexpected behavior of isNaN().
+}
+
+// Evaluates and returns variable if it's a function, otherwise just returns it.
+// Passes surplus arguments on to the function.
+//xxx argument forwarding needs testing.
+function valOf(variable) {
+  return typeof variable == "function" ? variable.apply(this, Array.prototype.slice.call(arguments, 1)) : variable;
+}
+function read_cookie(name) {
+  var result = document.cookie.match(new RegExp(name + "=([^;]+)"));
+  if (result) {
+    result = JSON.parse(result[1]);
+  }
+
+  return result;
+}
+
+// Calculates the summation of elements (n...m] of the arithmetic sequence
+// with increment "incr".
+function calcArithSum(incr, n, m) {
+  // Default to just element n+1, if m isn't given.
+  if (m === undefined) {
+    m = n + 1;
+  }
+  return ((m - n) * (n * incr + (m - 1) * incr)) / 2;
+}
+
+// Search for the largest integer X that generates func(X) < limitY.
+// func should be a continuous increasing numeric function.
+//xxx This would probably be more elegant written recursively.
+function logSearchFn(func, limitY) {
+  var minX = 0;
+  var maxX = 0;
+  var curX = 0;
+  var curY;
+
+  // First, find an upper bound.
+  while ((curY = func(maxX)) <= limitY) {
+    minX = maxX; // Previous was too low
+    maxX = maxX ? maxX * 2 : maxX + 1;
+  }
+  // Invariant:  minX <= desired X < maxX
+
+  // Now binary search the range.
+  while (maxX - minX > 1) {
+    curX = Math.floor((maxX + minX) / 2); // Find midpoint
+    curY = func(curX);
+
+    if (curY <= limitY) {
+      minX = curX; // Under limit; becomes new lower bound.
+    } else {
+      maxX = curX; // Over limit; becomes new upper bound.
+    }
+  }
+
+  return minX;
+}
+
+// Recursively merge the properties of one object into another.
+// Similar (though not identical) to jQuery.extend()
+function mergeObj(o1, o2) {
+  var i;
+
+  if (o2 === undefined) {
+    return o1;
+  }
+
+  // If either one is a non-object, just clobber o1.
+  if (typeof o2 != "object" || o1 === null || typeof o1 != "object" || o2 === null) {
+    o1 = o2;
+    return o1;
+  }
+
+  // Both are non-null objects.  Copy o2's properties to o1.
+  for (i in o2) {
+    if (o2.hasOwnProperty(i)) {
+      o1[i] = mergeObj(o1[i], o2[i]);
+    }
+  }
+
+  return o1;
+}
+
+// Wrapper to set an HTML element's visibility.
+// Pass the element object or ID as the 1st param.
+// Pass true as the 2nd param to be visible, false to be hidden, no value to
+// toggle.
+// Compensates for IE's lack of support for the "initial" property value.
+// May not support all HTML elements.
+// Returns the input visibility state, or undefined on an error.
+function setElemDisplay(htmlElem, visible) {
+  // If we're passed a string, assume it's the element ID.
+  if (typeof htmlElem === "string") {
+    htmlElem = document.getElementById(htmlElem);
+  }
+
+  if (!htmlElem) {
+    return undefined;
+  }
+
+  // If the visibility is unspecified, toggle it.
+  if (visible === undefined) {
+    visible = htmlElem.style.display == "none";
+  }
+
+  var tagName = htmlElem.tagName.toUpperCase();
+
+  /* xxx This is disabled because browser support for visibility: collapse is too inconsistent.
+    // If it's a <col> element, use visibility: collapse instead.
+    if (tagName == "COL") {
+        htmlElem.style.visibility = visible ? "inherit" : "collapse"; 
+        return;
+    }
+*/
+
+  var displayVal = !visible ? "none" : "initial";
+  if (visible) {
+    // Note that HTML comes in upper case, XML in lower.
+    switch (tagName) {
+      case "SPAN":
+        displayVal = "inline";
+        break;
+      case "DIV":
+        displayVal = "block";
+        break;
+      case "P":
+        displayVal = "block";
+        break;
+      case "TABLE":
+        displayVal = "table";
+        break;
+      case "CAPTION":
+        displayVal = "table-caption";
+        break;
+      case "THEAD":
+        displayVal = "table-header-group";
+        break;
+      case "TBODY":
+        displayVal = "table-row-group";
+        break;
+      case "TFOOT":
+        displayVal = "table-footer-group";
+        break;
+      case "TR":
+        displayVal = "table-row";
+        break;
+      case "COL":
+        displayVal = "table-column";
+        break;
+      case "TD":
+        displayVal = "table-cell";
+        break;
+      case "LI":
+        displayVal = "list-item";
+        break;
+      default:
+        console.log("Unsupported tag <" + tagName + "> passed to setElemDisplay()");
+        break;
+    }
+  }
+  htmlElem.style.display = displayVal;
+
+  return visible;
+}
+
+// Workaround for IE's lack of support for the dataset property.
+// Also searches up the DOM tree on lookups, to mimic inheritance.
+// Pass 'value' to set the value, otherwise returns the value.
+// Returns "true" and "false" as actual booleans.
+function dataset(elem, attr, value) {
+
+  var val = null;
+  for (var i = elem; i; i = i.parentNode) {
+    if (i.nodeType != Node.ELEMENT_NODE) {
+      continue;
+    }
+    val = i.getAttribute("data-" + attr);
+    if (val !== null) {
+      break;
+    }
+  }
+  return val == "true" ? true : val == "false" ? false : val;
+}
+
+// Probabilistic rounding function
+function rndRound(num) {
+  var baseVal = Math.floor(num);
+  return baseVal + (Math.random() < num - baseVal ? 1 : 0);
+}
+
+// Copy properties from to dest from src
+// If 'names' array supplied, only copies the named properties
+// If 'deleteOld' is true, deletes the properties from the old object
+function copyProps(dest, src, names, deleteOld) {
+  if (!(names instanceof Array)) {
+    names = Object.getOwnPropertyNames(src);
+  }
+  if (!isValid(deleteOld)) {
+    deleteOld = false;
+  }
+
+  names.forEach(function (elem) {
+    if (!src.hasOwnProperty(elem)) {
+      return;
+    }
+    // This syntax is needed to copy get/set properly; you can't just use '='.
+    Object.defineProperty(dest, elem, Object.getOwnPropertyDescriptor(src, elem));
+    if (deleteOld) {
+      delete src[elem];
+    }
+  });
+}
+
+// Delete the specified named cookie
+function deleteCookie(cookieName) {
+  document.cookie = [
+    cookieName,
+    "=; expires=Thu, 01-Jan-1970 00:00:01 GMT; path=/; domain=.",
+    window.location.host.toString(),
+  ].join("");
+}
+
+// Get the fundamental object of the given type
+function getStdObj(typeName) {
+  switch (typeName) {
+    case "object":
+      return Object;
+    case "boolean":
+      return Boolean;
+    case "number":
+      return Number;
+    case "string":
+      return String;
+    case "function":
+      return Function;
+    default:
+      return undefined;
+  }
+}
+
+// Return one variable, coerced to the type of another.
+function matchType(inVar, toMatch) {
+  return getStdObj(typeof toMatch)(inVar);
+}
+
+// Adds indices for the specified array.
+// Looks for the specified attribute in each array entry, and adds an alias for
+// it at the top level.
+function indexArrayByAttr(inArray, attr) {
+  inArray.forEach(function (elem, ignore, arr) {
+    // Add a named alias to each entry.
+    if (isValid(elem[attr]) && !isValid(arr[elem[attr]])) {
+      Object.defineProperty(arr, elem.id, { value: elem, enumerable: false });
+    } else {
+      console.log("Duplicate or missing " + attr + " attribute in array: " + elem[attr]);
+    }
+  });
+}
+
+// @ts-check
+
 /**
     CivClicker
     Copyright (C) 2017; see the AUTHORS file for authorship.

@@ -1,10 +1,30 @@
+import { LZString } from "./lz-string";
+import {
+  isValid,
+  ifValid,
+  valOf,
+  bake_cookie,
+  read_cookie,
+  calcArithSum,
+  logSearchFn,
+  mergeObj,
+  setElemDisplay,
+  dataset,
+  rndRound,
+  copyProps,
+  deleteCookie,
+  getStdObj,
+  matchType,
+  indexArrayByAttr,
+} from "./jsutils";
+
 /*jslint browser: true, devel: true, passfail: false, continue: true, eqeq: true, plusplus: true, vars: true, white: true, indent: 4, maxerr: 999 */
 /* Note:  I'm not going to bother using JSLint anymore, as it no longer allows
  * you to ignore its author's personal coding style preferences.  I'll use
  * JSHint instead. */
 /* jshint laxbreak: true, laxcomma: true */
 /* global updateJobButtons,updatePurchaseRow,updateResourceTotals,updateBuildingTotals,updateMobs,updateDeity,updateUpgrades,updateOldDeities,updateDevotion,updateParty,updateMorale,updateWonder,updatePopulation,calcCost,updateJobs,updateAchievements,updateTargets,updateWonderList,digGraves,renameDeity,spawnMob,renameWonder,adjustMorale,versionAlert,gameLog,prettify,LZString,bake_cookie,read_cookie,prettify,updateRequirements,calcWorkerCost,mergeObj,isValid,setElemDisplay,rndRound,playerCombatMods,dataset,copyProps,updatePopulationUI,calcZombieCost,logSearchFn,getCustomNumber,calcArithSum,SecurityError,doSlaughter,doLoot,doHavoc,valOf,setAutosave,setCustomQuantities,textSize,setDelimiters,setShadow,setNotes,setWorksafe,setIcons,deleteCookie,matchType,addPUpgradeRows,indexArrayByAttr */
-"use strict";
+("use strict");
 /**
     CivClicker
     Copyright (C) 2017; see the AUTHORS file for authorship.
