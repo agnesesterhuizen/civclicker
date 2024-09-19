@@ -2,6 +2,7 @@
   "scripts": {
     "build": "rollup --config rollup.config.js --configPlugin typescript",
     "dev": "rollup --config rollup.config.js --configPlugin typescript --watch",
+    "test": "vitest",
     "format": "prettier -w ."
   },
   "devDependencies": {
@@ -9,6 +10,7 @@
     "prettier": "^3.3.3",
     "rollup": "^4.22.0",
     "tslib": "^2.7.0",
-    "typescript": "^5.6.2"
+    "typescript": "^5.6.2",
+    "vitest": "^2.1.1"
   }
 }
