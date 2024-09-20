@@ -240,9 +240,13 @@ export function rndRound(num) {
   return baseVal + (Math.random() < num - baseVal ? 1 : 0);
 }
 
-// Copy properties from to dest from src
-// If 'names' array supplied, only copies the named properties
-// If 'deleteOld' is true, deletes the properties from the old object
+/**
+ * Copy properties from to dest from src
+ * @param {Object} dest
+ * @param {Object} src
+ * @param {string[]} names - If 'names' array supplied, only copies the named properties
+ * @param {boolean} deleteOld - If 'deleteOld' is true, deletes the properties from the old object
+ */
 export function copyProps(dest, src, names, deleteOld) {
   if (!(names instanceof Array)) {
     names = Object.getOwnPropertyNames(src);
